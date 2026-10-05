@@ -1,6 +1,7 @@
 import type { AuthResponse, FieldErrors, User } from '../types/auth'
 
 const TOKEN_KEY = 'auth_token'
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 export class AuthApiError extends Error {
   readonly status: number
@@ -67,7 +68,7 @@ export function register(
   password: string,
   passwordConfirmation: string,
 ): Promise<AuthResponse> {
-  return request<AuthResponse>('/api/register', {
+  return request<AuthResponse>(`${API_BASE_URL}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -85,7 +86,7 @@ export function login(
   identifier: string,
   password: string,
 ): Promise<AuthResponse> {
-  return request<AuthResponse>('/api/login', {
+  return request<AuthResponse>(`${API_BASE_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ login: identifier, password }),
@@ -93,13 +94,13 @@ export function login(
 }
 
 export function fetchUser(token: string): Promise<User> {
-  return request<User>('/api/user', {
+  return request<User>(`${API_BASE_URL}/user`, {
     headers: { Authorization: `Bearer ${token}` },
   })
 }
 
 export function logout(token: string): Promise<void> {
-  return request<void>('/api/logout', {
+  return request<void>(`${API_BASE_URL}/logout`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   })
