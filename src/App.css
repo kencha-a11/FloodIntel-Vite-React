@@ -265,6 +265,25 @@
   }
 }
 
+.muted {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 160%;
+  text-align: left;
+}
+
+.form-success {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: left;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+}
+
 .ticks {
   position: relative;
   width: 100%;

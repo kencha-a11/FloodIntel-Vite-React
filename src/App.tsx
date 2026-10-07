@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import { useAuth } from './context/useAuth'
+import { EmailVerificationResult } from './components/EmailVerificationResult'
+import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
 import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
+import { readEmailVerificationStatus } from './lib/emailVerification'
 import './App.css'
 
 function App() {
-  const { user, isLoading, logout } = useAuth()
+  const { user, isLoading, isEmailVerified, logout } = useAuth()
+  const [verificationDismissed, setVerificationDismissed] = useState(false)
+  const verificationStatus = verificationDismissed
+    ? null
+    : readEmailVerificationStatus()
   const [mode, setMode] = useState<'login' | 'register'>('login')
 
   if (isLoading) {
@@ -13,6 +20,15 @@ function App() {
       <section id="center">
         <p>Loading…</p>
       </section>
+    )
+  }
+
+  if (verificationStatus !== null) {
+    return (
+      <EmailVerificationResult
+        status={verificationStatus}
+        onDismiss={() => setVerificationDismissed(true)}
+      />
     )
   }
 
@@ -25,6 +41,16 @@ function App() {
           ) : (
             <RegisterForm onSwitch={() => setMode('login')} />
           )}
+        </div>
+      </section>
+    )
+  }
+
+  if (!isEmailVerified) {
+    return (
+      <section id="center">
+        <div className="auth-card">
+          <EmailVerificationPrompt />
         </div>
       </section>
     )

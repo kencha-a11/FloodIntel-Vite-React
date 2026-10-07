@@ -5,7 +5,11 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import type { FieldErrors, User } from '../types/auth'
+import type {
+  FieldErrors,
+  User,
+} from '../types/auth'
+import type { ResendVerificationResult } from './AuthContext'
 import * as authApi from '../lib/authApi'
 import { AuthContext } from './AuthContext'
 
@@ -119,23 +123,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  const refreshUser = useCallback(async () => {
+    const token = authApi.getStoredToken()
+
+    if (token === null) {
+      return
+    }
+
+    try {
+      const fetchedUser = await authApi.fetchUser(token)
+      setUser(fetchedUser)
+    } catch {
+      authApi.storeToken(null)
+      setUser(null)
+    }
+  }, [])
+
+  const resendVerification = useCallback(async (): Promise<ResendVerificationResult> => {
+    const token = authApi.getStoredToken()
+
+    if (token === null) {
+      return { status: 'error', message: 'You are not signed in.' }
+    }
+
+    try {
+      const response = await authApi.resendVerification(token)
+      return { status: 'sent', message: response.message }
+    } catch (err) {
+      if (err instanceof authApi.AuthApiError) {
+        if (err.status === 409) {
+          return { status: 'already-verified', message: err.message }
+        }
+
+        return { status: 'error', message: err.message }
+      }
+
+      return { status: 'error', message: 'Unable to connect to the server.' }
+    }
+  }, [])
+
   const clearError = useCallback(() => {
     setError(null)
     setFieldErrors({})
   }, [])
 
+  const isEmailVerified = user !== null && user.email_verified_at !== null
+
   const value = useMemo(
     () => ({
       user,
       isLoading,
+      isEmailVerified,
       error,
       fieldErrors,
       login,
       register,
       logout,
+      refreshUser,
+      resendVerification,
       clearError,
     }),
-    [user, isLoading, error, fieldErrors, login, register, logout, clearError],
+    [
+      user,
+      isLoading,
+      isEmailVerified,
+      error,
+      fieldErrors,
+      login,
+      register,
+      logout,
+      refreshUser,
+      resendVerification,
+      clearError,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

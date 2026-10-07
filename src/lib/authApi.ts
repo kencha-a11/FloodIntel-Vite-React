@@ -105,3 +105,15 @@ export function logout(token: string): Promise<void> {
     headers: { Authorization: `Bearer ${token}` },
   })
 }
+
+export function resendVerification(
+  token: string,
+): Promise<{ message: string }> {
+  return request<{ message: string }>(
+    `${API_BASE_URL}/email/verification-notification`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  )
+}
