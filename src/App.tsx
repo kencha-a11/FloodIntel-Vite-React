@@ -2,10 +2,18 @@ import { useState } from 'react'
 import { useAuth } from './context/useAuth'
 import { EmailVerificationResult } from './components/EmailVerificationResult'
 import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
+import { ForgotPasswordForm } from './components/ForgotPasswordForm'
+import { ResetPasswordForm } from './components/ResetPasswordForm'
 import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
 import { readEmailVerificationStatus } from './lib/emailVerification'
 import './App.css'
+
+type AuthMode = 'login' | 'register' | 'forgot-password'
+
+function isResetPasswordRoute(): boolean {
+  return window.location.pathname.replace(/\/+$/, '') === '/reset-password'
+}
 
 function App() {
   const { user, isLoading, isEmailVerified, logout } = useAuth()
@@ -13,7 +21,7 @@ function App() {
   const verificationStatus = verificationDismissed
     ? null
     : readEmailVerificationStatus()
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<AuthMode>('login')
 
   if (isLoading) {
     return (
@@ -32,12 +40,32 @@ function App() {
     )
   }
 
+  if (isResetPasswordRoute()) {
+    return (
+      <section id="center">
+        <div className="auth-card">
+          <ResetPasswordForm
+            onSignIn={() => {
+              window.history.replaceState({}, '', '/')
+              setMode('login')
+            }}
+          />
+        </div>
+      </section>
+    )
+  }
+
   if (user === null) {
     return (
       <section id="center">
         <div className="auth-card">
-          {mode === 'login' ? (
-            <LoginForm onSwitch={() => setMode('register')} />
+          {mode === 'forgot-password' ? (
+            <ForgotPasswordForm onBack={() => setMode('login')} />
+          ) : mode === 'login' ? (
+            <LoginForm
+              onSwitch={() => setMode('register')}
+              onForgotPassword={() => setMode('forgot-password')}
+            />
           ) : (
             <RegisterForm onSwitch={() => setMode('login')} />
           )}

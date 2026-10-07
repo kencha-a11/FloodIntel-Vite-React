@@ -6,12 +6,19 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 export class AuthApiError extends Error {
   readonly status: number
   readonly errors: FieldErrors
+  readonly retryAfter: number | null
 
-  constructor(message: string, status: number, errors: FieldErrors = {}) {
+  constructor(
+    message: string,
+    status: number,
+    errors: FieldErrors = {},
+    retryAfter: number | null = null,
+  ) {
     super(message)
     this.name = 'AuthApiError'
     this.status = status
     this.errors = errors
+    this.retryAfter = retryAfter
   }
 }
 
@@ -44,10 +51,23 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const message =
       firstValidationError(errors) ?? body?.message ?? 'Something went wrong'
 
-    throw new AuthApiError(message, response.status, errors)
+    throw new AuthApiError(
+      message,
+      response.status,
+      errors,
+      parseRetryAfter(response.headers.get('Retry-After')),
+    )
   }
 
   return body as T
+}
+
+function parseRetryAfter(header: string | null): number | null {
+  if (header === null || !/^\d+$/.test(header)) {
+    return null
+  }
+
+  return Number.parseInt(header, 10)
 }
 
 function firstValidationError(errors: FieldErrors): string | null {
@@ -116,4 +136,32 @@ export function resendVerification(
       headers: { Authorization: `Bearer ${token}` },
     },
   )
+}
+
+export function forgotPassword(
+  email: string,
+): Promise<{ message: string }> {
+  return request<{ message: string }>(`${API_BASE_URL}/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+}
+
+export function resetPassword(
+  token: string,
+  email: string,
+  password: string,
+  passwordConfirmation: string,
+): Promise<{ message: string }> {
+  return request<{ message: string }>(`${API_BASE_URL}/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token,
+      email,
+      password,
+      password_confirmation: passwordConfirmation,
+    }),
+  })
 }

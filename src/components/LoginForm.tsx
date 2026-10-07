@@ -1,10 +1,18 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
+import { formatDuration } from '../lib/format'
 import { isBlank } from '../lib/validation'
 
-export function LoginForm({ onSwitch }: { onSwitch: () => void }) {
-  const { login, error, fieldErrors, clearError } = useAuth()
+export function LoginForm({
+  onSwitch,
+  onForgotPassword,
+}: {
+  onSwitch: () => void
+  onForgotPassword: () => void
+}) {
+  const { login, error, fieldErrors, clearError, lockoutSeconds } =
+    useAuth()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -29,7 +37,7 @@ export function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     event.preventDefault()
     clearError()
 
-    if (isSubmitting || !validate()) {
+    if (isSubmitting || lockoutSeconds > 0 || !validate()) {
       return
     }
 
@@ -78,9 +86,19 @@ export function LoginForm({ onSwitch }: { onSwitch: () => void }) {
         )}
       </label>
 
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Signing in…' : 'Sign in'}
+      <button type="submit" disabled={isSubmitting || lockoutSeconds > 0}>
+        {lockoutSeconds > 0
+          ? `Try again in ${formatDuration(lockoutSeconds)}`
+          : isSubmitting
+            ? 'Signing in…'
+            : 'Sign in'}
       </button>
+
+      <p className="switch">
+        <button type="button" className="link" onClick={onForgotPassword}>
+          Forgot password?
+        </button>
+      </p>
 
       <p className="switch">
         New here?{' '}

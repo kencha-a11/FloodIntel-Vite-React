@@ -1,13 +1,20 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
+import { formatDuration } from '../lib/format'
 import { isBlank, isContactNumber, isEmail } from '../lib/validation'
 
 const PASSWORD_MIN_LENGTH = 8
 const NAME_MAX_LENGTH = 255
 
 export function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
-  const { register, error, fieldErrors, clearError } = useAuth()
+  const {
+    register,
+    error,
+    fieldErrors,
+    clearError,
+    lockoutSeconds,
+  } = useAuth()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [contactNumber, setContactNumber] = useState('')
@@ -65,7 +72,7 @@ export function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
     event.preventDefault()
     clearError()
 
-    if (isSubmitting || !validate()) {
+    if (isSubmitting || lockoutSeconds > 0 || !validate()) {
       return
     }
 
@@ -176,8 +183,12 @@ export function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
         )}
       </label>
 
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Creating account…' : 'Create account'}
+      <button type="submit" disabled={isSubmitting || lockoutSeconds > 0}>
+        {lockoutSeconds > 0
+          ? `Try again in ${formatDuration(lockoutSeconds)}`
+          : isSubmitting
+            ? 'Creating account…'
+            : 'Create account'}
       </button>
 
       <p className="switch">

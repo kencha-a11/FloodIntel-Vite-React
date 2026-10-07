@@ -20,6 +20,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [lockoutSeconds, setLockoutSeconds] = useState(0)
+
+  useEffect(() => {
+    if (lockoutSeconds <= 0) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setLockoutSeconds((seconds) => seconds - 1)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [lockoutSeconds])
 
   useEffect(() => {
     const token = authApi.getStoredToken()
@@ -61,11 +74,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.login(identifier, password)
       authApi.storeToken(response.token)
       setUser(response.user)
+      setLockoutSeconds(0)
       return true
     } catch (err) {
       if (err instanceof authApi.AuthApiError) {
         setError(err.message)
         setFieldErrors(err.errors)
+
+        if (err.status === 429) {
+          setLockoutSeconds(err.retryAfter ?? 60)
+        }
       } else {
         setError('Unable to connect to the server.')
       }
@@ -97,11 +115,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
         authApi.storeToken(response.token)
         setUser(response.user)
+        setLockoutSeconds(0)
         return true
       } catch (err) {
         if (err instanceof authApi.AuthApiError) {
           setError(err.message)
           setFieldErrors(err.errors)
+
+          if (err.status === 429) {
+            setLockoutSeconds(err.retryAfter ?? 3600)
+          }
         } else {
           setError('Unable to connect to the server.')
         }
@@ -174,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isLoading,
       isEmailVerified,
+      lockoutSeconds,
       error,
       fieldErrors,
       login,
@@ -187,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isLoading,
       isEmailVerified,
+      lockoutSeconds,
       error,
       fieldErrors,
       login,

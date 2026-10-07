@@ -10,6 +10,7 @@ export interface AuthContextValue {
   user: User | null
   isLoading: boolean
   isEmailVerified: boolean
+  lockoutSeconds: number
   error: string | null
   fieldErrors: FieldErrors
   login: (identifier: string, password: string) => Promise<boolean>
