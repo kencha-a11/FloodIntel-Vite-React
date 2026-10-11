@@ -92,49 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const register = useCallback(
-    async (
-      firstName: string,
-      lastName: string,
-      contactNumber: string,
-      email: string,
-      password: string,
-      passwordConfirmation: string,
-    ) => {
-      setError(null)
-      setFieldErrors({})
-
-      try {
-        const response = await authApi.register(
-          firstName,
-          lastName,
-          contactNumber,
-          email,
-          password,
-          passwordConfirmation,
-        )
-        authApi.storeToken(response.token)
-        setUser(response.user)
-        setLockoutSeconds(0)
-        return true
-      } catch (err) {
-        if (err instanceof authApi.AuthApiError) {
-          setError(err.message)
-          setFieldErrors(err.errors)
-
-          if (err.status === 429) {
-            setLockoutSeconds(err.retryAfter ?? 3600)
-          }
-        } else {
-          setError('Unable to connect to the server.')
-        }
-
-        return false
-      }
-    },
-    [],
-  )
-
   const logout = useCallback(async () => {
     const token = authApi.getStoredToken()
 
@@ -201,7 +158,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error,
       fieldErrors,
       login,
-      register,
       logout,
       refreshUser,
       resendVerification,
@@ -215,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error,
       fieldErrors,
       login,
-      register,
       logout,
       refreshUser,
       resendVerification,

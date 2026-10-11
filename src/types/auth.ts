@@ -14,4 +14,17 @@ export interface AuthResponse {
   token: string
 }
 
+export interface ApiToken {
+  id: number
+  name: string
+  abilities: string[]
+  created_at: string
+  last_used_at: string | null
+}
+
+export interface CreateTokenResponse {
+  data: ApiToken
+  token: string
+}
+
 export type FieldErrors = Partial<Record<string, string[]>>

@@ -4,12 +4,12 @@ import { EmailVerificationResult } from './components/EmailVerificationResult'
 import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
 import { ResetPasswordForm } from './components/ResetPasswordForm'
+import { TokenManager } from './components/TokenManager'
 import { LoginForm } from './components/LoginForm'
-import { RegisterForm } from './components/RegisterForm'
 import { readEmailVerificationStatus } from './lib/emailVerification'
 import './App.css'
 
-type AuthMode = 'login' | 'register' | 'forgot-password'
+type AuthMode = 'login' | 'forgot-password'
 
 function isResetPasswordRoute(): boolean {
   return window.location.pathname.replace(/\/+$/, '') === '/reset-password'
@@ -22,6 +22,7 @@ function App() {
     ? null
     : readEmailVerificationStatus()
   const [mode, setMode] = useState<AuthMode>('login')
+  const [showTokens, setShowTokens] = useState(false)
 
   if (isLoading) {
     return (
@@ -61,13 +62,8 @@ function App() {
         <div className="auth-card">
           {mode === 'forgot-password' ? (
             <ForgotPasswordForm onBack={() => setMode('login')} />
-          ) : mode === 'login' ? (
-            <LoginForm
-              onSwitch={() => setMode('register')}
-              onForgotPassword={() => setMode('forgot-password')}
-            />
           ) : (
-            <RegisterForm onSwitch={() => setMode('login')} />
+            <LoginForm onForgotPassword={() => setMode('forgot-password')} />
           )}
         </div>
       </section>
@@ -84,14 +80,33 @@ function App() {
     )
   }
 
+  if (showTokens) {
+    return (
+      <section id="center">
+        <div className="auth-card">
+          <TokenManager onBack={() => setShowTokens(false)} />
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section id="center">
       <div className="auth-card">
         <h1>Welcome, {user.first_name} {user.last_name}</h1>
         <p>Signed in as {user.email}</p>
-        <button type="button" className="counter" onClick={logout}>
-          Log out
-        </button>
+        <div className="welcome-actions">
+          <button
+            type="button"
+            className="counter"
+            onClick={() => setShowTokens(true)}
+          >
+            API tokens
+          </button>
+          <button type="button" className="counter" onClick={logout}>
+            Log out
+          </button>
+        </div>
       </div>
     </section>
   )

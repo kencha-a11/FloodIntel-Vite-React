@@ -5,10 +5,8 @@ import { formatDuration } from '../lib/format'
 import { isBlank } from '../lib/validation'
 
 export function LoginForm({
-  onSwitch,
   onForgotPassword,
 }: {
-  onSwitch: () => void
   onForgotPassword: () => void
 }) {
   const { login, error, fieldErrors, clearError, lockoutSeconds } =
@@ -100,11 +98,9 @@ export function LoginForm({
         </button>
       </p>
 
-      <p className="switch">
-        New here?{' '}
-        <button type="button" className="link" onClick={onSwitch}>
-          Create an account
-        </button>
+      <p className="muted">
+        Accounts are created by your MDRRMO administrator. Contact them if you
+        need access.
       </p>
     </form>
   )

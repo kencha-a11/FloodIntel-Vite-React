@@ -1,4 +1,10 @@
-import type { AuthResponse, FieldErrors, User } from '../types/auth'
+import type {
+  ApiToken,
+  AuthResponse,
+  CreateTokenResponse,
+  FieldErrors,
+  User,
+} from '../types/auth'
 
 const TOKEN_KEY = 'auth_token'
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -80,28 +86,6 @@ function firstValidationError(errors: FieldErrors): string | null {
   return null
 }
 
-export function register(
-  firstName: string,
-  lastName: string,
-  contactNumber: string,
-  email: string,
-  password: string,
-  passwordConfirmation: string,
-): Promise<AuthResponse> {
-  return request<AuthResponse>(`${API_BASE_URL}/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      first_name: firstName,
-      last_name: lastName,
-      contact_number: contactNumber,
-      email,
-      password,
-      password_confirmation: passwordConfirmation,
-    }),
-  })
-}
-
 export function login(
   identifier: string,
   password: string,
@@ -163,5 +147,43 @@ export function resetPassword(
       password,
       password_confirmation: passwordConfirmation,
     }),
+  })
+}
+
+export function listTokens(token: string): Promise<ApiToken[]> {
+  return request<{ data: ApiToken[] }>(`${API_BASE_URL}/tokens`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((response) => response.data)
+}
+
+export function createToken(
+  token: string,
+  name: string,
+  abilities: string[] = [],
+): Promise<CreateTokenResponse> {
+  const payload =
+    abilities.length > 0 ? { name, abilities } : { name }
+
+  return request<CreateTokenResponse>(`${API_BASE_URL}/tokens`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteToken(token: string, id: number): Promise<void> {
+  return request<void>(`${API_BASE_URL}/tokens/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function deleteAllTokens(token: string): Promise<void> {
+  return request<void>(`${API_BASE_URL}/tokens`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
   })
 }
