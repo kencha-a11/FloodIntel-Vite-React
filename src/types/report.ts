@@ -33,6 +33,7 @@ export interface FloodReport {
   latitude: number
   longitude: number
   gps_accuracy: number | null
+  address: string | null
   photo_url: string
   notes: string | null
   reported_at: string

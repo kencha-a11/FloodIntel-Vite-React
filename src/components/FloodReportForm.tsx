@@ -1,15 +1,31 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
-import { AuthApiError, getStoredToken } from '../lib/authApi'
-import {
-  ACCEPTED_PHOTO_TYPES,
-  FLOOD_LEVELS,
-  MAX_PHOTO_SIZE_KB,
-} from '../lib/floodLevels'
-import * as reportApi from '../lib/reportApi'
+import { useQueue } from '../context/useQueue'
+import { FLOOD_LEVELS } from '../lib/floodLevels'
+import { compressPhoto } from '../lib/photo'
+import type { PhotoProgress } from '../lib/photo'
+import { setDraftDirty } from '../lib/draftGuard'
+import { getStoredToken } from '../lib/http'
+import { reverseGeocode } from '../lib/geocode'
 import type { FieldErrors } from '../types/auth'
-import type { FloodLevel, FloodReport } from '../types/report'
+import type { FloodLevel } from '../types/report'
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function describeCompression(progress: PhotoProgress): string {
+  if (progress.stage === 'decoding') {
+    return 'Reading photo…'
+  }
+
+  return `Optimising photo (${progress.edge}px, quality ${Math.round((progress.quality ?? 0) * 100)}%)…`
+}
 
 interface GpsFix {
   latitude: number
@@ -19,6 +35,23 @@ interface GpsFix {
 }
 
 type FormStep = 'form' | 'confirm' | 'success'
+
+type AddressStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
+
+function describeAddressStatus(
+  status: AddressStatus,
+  address: string | null,
+): string {
+  if (status === 'ready' && address !== null) {
+    return address
+  }
+
+  if (status === 'loading') {
+    return 'Looking up address…'
+  }
+
+  return 'Address unavailable'
+}
 
 function capturePosition(): Promise<GpsFix> {
   return new Promise((resolve, reject) => {
@@ -73,22 +106,62 @@ export function FloodReportForm({
 }: {
   onViewReports: () => void
 }) {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const { submitLevelReport } = useQueue()
   const [step, setStep] = useState<FormStep>('form')
   const [level, setLevel] = useState<FloodLevel | ''>('')
   const [notes, setNotes] = useState('')
-  const [photo, setPhoto] = useState<File | null>(null)
+  const [photo, setPhoto] = useState<Blob | null>(null)
+  const [photoName, setPhotoName] = useState('flood-report.jpg')
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoError, setPhotoError] = useState<string | null>(null)
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [compressionLabel, setCompressionLabel] = useState<string | null>(null)
+  const [compressionStage, setCompressionStage] = useState<string | null>(null)
   const [gps, setGps] = useState<GpsFix | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [isLocating, setIsLocating] = useState(true)
+  const [address, setAddress] = useState<string | null>(null)
+  const [addressStatus, setAddressStatus] = useState<AddressStatus>('idle')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverFieldErrors, setServerFieldErrors] = useState<FieldErrors>({})
-  const [createdReport, setCreatedReport] = useState<FloodReport | null>(null)
+  const [submitResult, setSubmitResult] = useState<{
+    queued: boolean
+    reportId: number | null
+    message: string
+  } | null>(null)
   const photoUrlRef = useRef<string | null>(null)
+  const addressAttempt = useRef(0)
+
+  const resolveAddress = useCallback((fix: GpsFix): void => {
+    const attempt = addressAttempt.current + 1
+    addressAttempt.current = attempt
+    setAddress(null)
+    setAddressStatus('loading')
+
+    const token = getStoredToken()
+
+    if (token === null || !navigator.onLine) {
+      setAddressStatus('unavailable')
+      return
+    }
+
+    void reverseGeocode(token, fix.latitude, fix.longitude).then((result) => {
+      if (addressAttempt.current !== attempt) {
+        return
+      }
+
+      if (result === null) {
+        setAddressStatus('unavailable')
+        return
+      }
+
+      setAddress(result)
+      setAddressStatus('ready')
+    })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -102,6 +175,7 @@ export function FloodReportForm({
 
         if (!cancelled) {
           setGps(fix)
+          resolveAddress(fix)
         }
       } catch (err) {
         if (!cancelled) {
@@ -123,7 +197,25 @@ export function FloodReportForm({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [resolveAddress])
+
+  useEffect(() => {
+    if (gps === null || addressStatus !== 'unavailable') {
+      return
+    }
+
+    function handleOnline(): void {
+      if (gps !== null) {
+        resolveAddress(gps)
+      }
+    }
+
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [gps, addressStatus, resolveAddress])
 
   useEffect(() => {
     return () => {
@@ -133,12 +225,26 @@ export function FloodReportForm({
     }
   }, [])
 
+  useEffect(() => {
+    const hasDraft =
+      level !== '' || notes.trim() !== '' || photo !== null || step === 'confirm'
+
+    setDraftDirty(hasDraft && step !== 'success')
+
+    return () => {
+      setDraftDirty(false)
+    }
+  }, [level, notes, photo, step])
+
   function refreshLocation(): void {
     setIsLocating(true)
     setGpsError(null)
 
     capturePosition()
-      .then((fix) => setGps(fix))
+      .then((fix) => {
+        setGps(fix)
+        resolveAddress(fix)
+      })
       .catch((err: unknown) => {
         setGpsError(
           err instanceof Error
@@ -149,7 +255,7 @@ export function FloodReportForm({
       .finally(() => setIsLocating(false))
   }
 
-  function updatePhoto(file: File | null): void {
+  function updatePhoto(file: Blob | null): void {
     if (photoUrlRef.current !== null) {
       URL.revokeObjectURL(photoUrlRef.current)
       photoUrlRef.current = null
@@ -162,9 +268,13 @@ export function FloodReportForm({
     setPhotoPreview(photoUrlRef.current)
   }
 
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>): void {
+  async function handlePhotoChange(
+    event: ChangeEvent<HTMLInputElement>,
+  ): Promise<void> {
     const file = event.target.files?.[0] ?? null
     setPhotoError(null)
+    setCompressionLabel(null)
+    setCompressionStage(null)
 
     if (file === null) {
       setPhoto(null)
@@ -172,22 +282,50 @@ export function FloodReportForm({
       return
     }
 
-    if (!ACCEPTED_PHOTO_TYPES.includes(file.type)) {
+    if (!file.type.startsWith('image/')) {
       setPhoto(null)
       updatePhoto(null)
-      setPhotoError('Unsupported image format. Please use JPEG, PNG, or WebP.')
+      setPhotoError('Only image files can be attached.')
       return
     }
 
-    if (file.size > MAX_PHOTO_SIZE_KB * 1024) {
+    setIsCompressing(true)
+    setPhoto(null)
+    updatePhoto(null)
+
+    try {
+      const compressed = await compressPhoto(file, {
+        onProgress: (progress) => {
+          setCompressionStage(describeCompression(progress))
+        },
+      })
+
+      setPhoto(compressed.blob)
+      setPhotoName(
+        `${file.name.replace(/\.[^.]+$/, '') || 'flood-report'}.jpg`,
+      )
+      updatePhoto(compressed.blob)
+      setCompressionLabel(
+        `${formatFileSize(compressed.originalBytes)} → ${formatFileSize(compressed.bytes)}`,
+      )
+
+      if (!compressed.meetsTarget) {
+        setPhotoError(
+          'The photo was reduced but is still larger than 1 MB. It will be sent below the 5 MB limit.',
+        )
+      }
+    } catch (err) {
       setPhoto(null)
       updatePhoto(null)
-      setPhotoError('Photo is too large. The maximum size is 5 MB.')
-      return
+      setPhotoError(
+        err instanceof Error
+          ? err.message
+          : 'This photo could not be processed.',
+      )
+    } finally {
+      setIsCompressing(false)
+      setCompressionStage(null)
     }
-
-    setPhoto(file)
-    updatePhoto(file)
   }
 
   function validate(): boolean {
@@ -197,7 +335,9 @@ export function FloodReportForm({
       next.flood_level = 'Select the observed flood level.'
     }
 
-    if (photo === null) {
+    if (isCompressing) {
+      next.photo = 'Wait for the photo to finish processing.'
+    } else if (photo === null) {
       next.photo = 'A photo of the flood is required.'
     }
 
@@ -221,14 +361,13 @@ export function FloodReportForm({
   }
 
   async function handleSubmit(): Promise<void> {
-    if (isSubmitting || photo === null || gps === null || level === '') {
-      return
-    }
-
-    const token = getStoredToken()
-
-    if (token === null) {
-      setError('You are not signed in.')
+    if (
+      isSubmitting ||
+      isCompressing ||
+      photo === null ||
+      gps === null ||
+      level === ''
+    ) {
       return
     }
 
@@ -236,12 +375,13 @@ export function FloodReportForm({
     setError(null)
     setServerFieldErrors({})
 
-    const observedAt = new Date(Math.min(gps.capturedAt, Date.now())).toISOString()
+    const observedAt = new Date(
+      Math.min(gps.capturedAt, Date.now()),
+    ).toISOString()
 
     try {
-      const report = await reportApi.submitReport(
-        token,
-        {
+      const result = await submitLevelReport({
+        payload: {
           flood_level: level,
           latitude: gps.latitude,
           longitude: gps.longitude,
@@ -249,27 +389,27 @@ export function FloodReportForm({
           notes: notes.trim() === '' ? null : notes.trim(),
           reported_at: observedAt,
         },
+        observedAt,
         photo,
-      )
+        photoName,
+      })
 
-      setCreatedReport(report)
-      setStep('success')
-    } catch (err) {
-      if (err instanceof AuthApiError) {
-        if (err.status === 401) {
-          await logout()
-          return
-        }
-
-        setError(err.message)
-        setServerFieldErrors(err.errors)
-
-        if (err.status === 422) {
-          setStep('form')
-        }
-      } else {
-        setError('Unable to connect to the server.')
+      if (result.failed) {
+        setError(result.message)
+        return
       }
+
+      setSubmitResult({
+        queued: result.queued,
+        reportId: result.reportId,
+        message: result.message,
+      })
+      setStep('success')
+      setDraftDirty(false)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Unable to save the report.',
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -280,12 +420,19 @@ export function FloodReportForm({
     setLevel('')
     setNotes('')
     setPhoto(null)
+    setPhotoName('flood-report.jpg')
     updatePhoto(null)
     setPhotoError(null)
+    setCompressionLabel(null)
+    setCompressionStage(null)
     setError(null)
     setErrors({})
     setServerFieldErrors({})
-    setCreatedReport(null)
+    setSubmitResult(null)
+    setAddress(null)
+    setAddressStatus('idle')
+    addressAttempt.current += 1
+    setDraftDirty(false)
   }
 
   const levelError = errors.flood_level ?? serverFieldErrors.flood_level?.[0]
@@ -294,14 +441,16 @@ export function FloodReportForm({
   const notesError = serverFieldErrors.notes?.[0]
   const selectedLevel = FLOOD_LEVELS.find((option) => option.value === level)
 
-  if (step === 'success' && createdReport !== null) {
+  if (step === 'success' && submitResult !== null) {
     return (
       <div className="report-form">
-        <h2>Report submitted</h2>
+        <h2>{submitResult.queued ? 'Report saved' : 'Report submitted'}</h2>
 
         <p className="form-success">
-          Report #{createdReport.id} ({createdReport.flood_level_label}) was sent
-          to the command center.
+          {submitResult.message}
+          {submitResult.reportId !== null && !submitResult.queued
+            ? ` Report #${submitResult.reportId} (${selectedLevel?.label ?? level}) is now with the command center.`
+            : ''}
         </p>
 
         <div className="report-form-actions">
@@ -341,6 +490,14 @@ export function FloodReportForm({
             <dd>
               {formatCoordinates(gps)}{' '}
               <span className="muted">({formatAccuracy(gps.accuracy)})</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Address</dt>
+            <dd>
+              {addressStatus === 'loading'
+                ? 'Looking up…'
+                : (address ?? 'Not available')}
             </dd>
           </div>
           <div>
@@ -414,9 +571,30 @@ export function FloodReportForm({
         {isLocating ? (
           <p className="muted">Acquiring GPS coordinates…</p>
         ) : gps !== null ? (
-          <p className="muted">
-            {formatCoordinates(gps)} ({formatAccuracy(gps.accuracy)})
-          </p>
+          <>
+            <p className="muted">
+              {formatCoordinates(gps)} ({formatAccuracy(gps.accuracy)})
+            </p>
+            <p className="muted">
+              {describeAddressStatus(addressStatus, address)}
+              {addressStatus === 'unavailable' && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      if (gps !== null) {
+                        resolveAddress(gps)
+                      }
+                    }}
+                  >
+                    Retry
+                  </button>
+                </>
+              )}
+            </p>
+          </>
         ) : (
           <p className="form-error" role="alert">
             {gpsError ?? 'GPS coordinates are required.'}
@@ -439,13 +617,23 @@ export function FloodReportForm({
         <span>Photo</span>
         <input
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*"
           capture="environment"
-          onChange={handlePhotoChange}
+          disabled={isCompressing}
+          onChange={(event) => void handlePhotoChange(event)}
         />
         <small className="muted">
-          JPEG, PNG, or WebP up to 5 MB. The camera opens on mobile devices.
+          Photos are optimised on this device before sending (1 MB target, 5 MB
+          maximum). The camera opens on mobile devices.
         </small>
+        {isCompressing && (
+          <small className="muted">
+            {compressionStage ?? 'Optimising photo…'}
+          </small>
+        )}
+        {!isCompressing && compressionLabel !== null && (
+          <small className="muted">Optimised: {compressionLabel}</small>
+        )}
         {photoError !== null && (
           <small className="field-error">{photoError}</small>
         )}

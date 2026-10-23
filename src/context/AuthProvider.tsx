@@ -11,13 +11,25 @@ import type {
 } from '../types/auth'
 import type { ResendVerificationResult } from './AuthContext'
 import * as authApi from '../lib/authApi'
+import {
+  cacheUser,
+  clearSessionCache,
+  markAuthenticated,
+  readCachedUser,
+} from '../lib/session'
 import { AuthContext } from './AuthContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(
-    () => authApi.getStoredToken() !== null,
+  const [user, setUser] = useState<User | null>(() =>
+    authApi.getStoredToken() !== null ? readCachedUser() : null,
   )
+  const [isLoading, setIsLoading] = useState(() => {
+    if (authApi.getStoredToken() === null) {
+      return false
+    }
+
+    return readCachedUser() === null
+  })
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [lockoutSeconds, setLockoutSeconds] = useState(0)
@@ -48,12 +60,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((fetchedUser) => {
         if (!cancelled) {
           setUser(fetchedUser)
+          cacheUser(fetchedUser)
+          markAuthenticated()
         }
       })
-      .catch(() => {
-        if (!cancelled) {
-          authApi.storeToken(null)
+      .catch((err: unknown) => {
+        if (cancelled) {
+          return
         }
+
+        if (
+          err instanceof authApi.AuthApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
+          authApi.storeToken(null)
+          clearSessionCache()
+          setUser(null)
+
+          return
+        }
+
+        setUser(readCachedUser())
       })
       .finally(() => {
         if (!cancelled) {
@@ -73,6 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.login(identifier, password)
       authApi.storeToken(response.token)
+      cacheUser(response.user)
+      markAuthenticated()
       setUser(response.user)
       setLockoutSeconds(0)
       return true
@@ -100,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authApi.storeToken(null)
     }
 
+    clearSessionCache()
     setUser(null)
   }, [])
 
@@ -113,9 +143,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const fetchedUser = await authApi.fetchUser(token)
       setUser(fetchedUser)
-    } catch {
-      authApi.storeToken(null)
-      setUser(null)
+      cacheUser(fetchedUser)
+      markAuthenticated()
+    } catch (err) {
+      if (
+        err instanceof authApi.AuthApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
+        authApi.storeToken(null)
+        clearSessionCache()
+        setUser(null)
+      }
     }
   }, [])
 

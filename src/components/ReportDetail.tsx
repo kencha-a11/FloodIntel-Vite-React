@@ -188,6 +188,12 @@ export function ReportDetail({
               </dd>
             </div>
             <div>
+              <dt>Address</dt>
+              <dd className="report-address">
+                {report.address ?? 'Not available'}
+              </dd>
+            </div>
+            <div>
               <dt>Observed at</dt>
               <dd>{new Date(report.reported_at).toLocaleString()}</dd>
             </div>

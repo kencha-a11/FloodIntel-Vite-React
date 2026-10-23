@@ -9,6 +9,8 @@ import { ReportList } from './components/ReportList'
 import { ResetPasswordForm } from './components/ResetPasswordForm'
 import { TokenManager } from './components/TokenManager'
 import { LoginForm } from './components/LoginForm'
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
+import { QueueIndicator } from './components/QueueIndicator'
 import { readEmailVerificationStatus } from './lib/emailVerification'
 import './App.css'
 
@@ -113,10 +115,15 @@ function App() {
               {user.barangay !== null ? user.barangay.name : 'All barangays'}
             </p>
           </div>
-          <button type="button" className="counter" onClick={logout}>
-            Log out
-          </button>
+          <div className="app-header-actions">
+            <QueueIndicator />
+            <button type="button" className="counter" onClick={logout}>
+              Log out
+            </button>
+          </div>
         </header>
+
+        <PwaUpdatePrompt />
 
         <nav className="app-nav">
           {canSubmit && (

@@ -32,10 +32,13 @@ export function getReport(
 export function submitReport(
   token: string,
   report: FloodReportInput,
-  photo: File,
+  photo: Blob,
+  clientUuid: string,
+  photoName = 'flood-report.jpg',
 ): Promise<FloodReport> {
   const form = new FormData()
 
+  form.append('client_uuid', clientUuid)
   form.append('flood_level', report.flood_level)
   form.append('latitude', String(report.latitude))
   form.append('longitude', String(report.longitude))
@@ -52,7 +55,7 @@ export function submitReport(
     form.append('reported_at', report.reported_at)
   }
 
-  form.append('photo', photo)
+  form.append('photo', photo, photoName)
 
   return requestForm<{ data: FloodReport }>(
     `${API_BASE_URL}/flood-reports`,

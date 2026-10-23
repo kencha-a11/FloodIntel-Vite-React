@@ -23,6 +23,15 @@ export class AuthApiError extends Error {
   }
 }
 
+export class NetworkTimeoutError extends Error {
+  constructor(message = 'The request timed out.') {
+    super(message)
+    this.name = 'NetworkTimeoutError'
+  }
+}
+
+const DEFAULT_TIMEOUT_MS = 30_000
+
 export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -35,16 +44,48 @@ export function storeToken(token: string | null): void {
   }
 }
 
-export function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  return sendRequest<T>(fetch(path, options))
+export function request<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<T> {
+  return withTimeout(
+    (signal) => sendRequest<T>(fetch(path, { ...options, signal })),
+    timeoutMs,
+  )
 }
 
 export function requestForm<T>(
   path: string,
   form: FormData,
   options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<T> {
-  return sendRequest<T>(fetch(path, { ...options, body: form }))
+  return withTimeout(
+    (signal) =>
+      sendRequest<T>(fetch(path, { ...options, body: form, signal })),
+    timeoutMs,
+  )
+}
+
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await run(controller.signal)
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new NetworkTimeoutError()
+    }
+
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function sendRequest<T>(responsePromise: Promise<Response>): Promise<T> {
