@@ -6,11 +6,12 @@ import { formatDuration } from '../lib/format'
 import type { QueueItem, QueueOutcome } from '../types/queue'
 
 function levelLabel(item: QueueItem): string {
-  return (
+  const level =
     FLOOD_LEVELS.find(
       (level) => level.value === item.payload.flood_level,
-    )?.label ?? item.payload.flood_level
-  )
+    )?.label ?? item.payload.flood_level ?? ''
+
+  return level
 }
 
 function formatSize(bytes: number): string {

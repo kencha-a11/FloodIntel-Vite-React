@@ -13,6 +13,7 @@ import type {
 
 const EMPTY_FILTERS: ReportFilters = {
   flood_level: '',
+  alert_level: '',
   status: '',
   barangay_id: '',
   from: '',
@@ -254,7 +255,7 @@ export function ReportList({
                 <div className="report-row-body">
                   <div className="report-row-header">
                     <span className={`severity-badge severity-${report.severity}`}>
-                      {report.flood_level_label}
+                      {report.alert_level_label ?? report.flood_level_label}
                     </span>
                     <span
                       className={`status-badge status-${report.status}`}

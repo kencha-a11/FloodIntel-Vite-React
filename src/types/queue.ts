@@ -1,4 +1,4 @@
-import type { FloodLevel } from './report'
+import type { AlertLevel, FloodLevel, FloodType } from './report'
 
 export type QueueItemKind = 'level'
 
@@ -10,7 +10,11 @@ export type QueueItemStatus =
   | 'auth-required'
 
 export interface LevelReportPayload {
-  flood_level: FloodLevel
+  flood_level: FloodLevel | null
+  alert_level?: AlertLevel | null
+  flood_type?: FloodType | null
+  depth_cm?: number | null
+  landmark?: string | null
   latitude: number
   longitude: number
   gps_accuracy: number | null

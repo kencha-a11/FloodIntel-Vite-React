@@ -17,7 +17,7 @@ import {
   updateQueueItem,
 } from './offlineQueue'
 import { isSyncWindowExpired, readLastAuthenticatedAt } from './session'
-import type { FloodReport, Paginated } from '../types/report'
+import type { FloodReport, FloodReportInput, Paginated } from '../types/report'
 import type { QueueItem, QueueOutcome } from '../types/queue'
 
 const BACKOFF_MS = [
@@ -82,8 +82,17 @@ export function isReplayMatch(
     return false
   }
 
-  if (report.flood_level !== item.payload.flood_level) {
-    return false
+  // Branch on the item's vocabulary: new items compare alert_level;
+  // legacy items compare flood_level. Do not rewrite legacy payloads
+  // into alert tiers.
+  if (item.payload.alert_level !== null && item.payload.alert_level !== undefined) {
+    if (report.alert_level !== item.payload.alert_level) {
+      return false
+    }
+  } else {
+    if (report.flood_level !== item.payload.flood_level) {
+      return false
+    }
   }
 
   if (
@@ -118,7 +127,7 @@ async function sendItem(
 
   return reportApi.submitReport(
     token,
-    item.payload,
+    item.payload as FloodReportInput,
     photo,
     item.id,
     item.photoName,

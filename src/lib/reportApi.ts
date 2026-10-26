@@ -39,7 +39,6 @@ export function submitReport(
   const form = new FormData()
 
   form.append('client_uuid', clientUuid)
-  form.append('flood_level', report.flood_level)
   form.append('latitude', String(report.latitude))
   form.append('longitude', String(report.longitude))
 
@@ -53,6 +52,22 @@ export function submitReport(
 
   if (report.reported_at !== null) {
     form.append('reported_at', report.reported_at)
+  }
+
+  // Append exactly one level vocabulary.
+  if ('alert_level' in report && report.alert_level !== undefined) {
+    form.append('alert_level', report.alert_level)
+    if ('flood_type' in report && report.flood_type !== undefined) {
+      form.append('flood_type', report.flood_type)
+    }
+    if ('depth_cm' in report && report.depth_cm !== null) {
+      form.append('depth_cm', String(report.depth_cm))
+    }
+    if ('landmark' in report && report.landmark !== null) {
+      form.append('landmark', report.landmark)
+    }
+  } else {
+    form.append('flood_level', report.flood_level)
   }
 
   form.append('photo', photo, photoName)
@@ -96,6 +111,10 @@ function buildQuery(filters: ReportFilters): string {
 
   if (filters.flood_level !== '') {
     query.set('flood_level', filters.flood_level)
+  }
+
+  if (filters.alert_level !== '') {
+    query.set('alert_level', filters.alert_level)
   }
 
   if (filters.status !== '') {

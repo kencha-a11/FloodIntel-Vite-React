@@ -1,0 +1,188 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+interface CameraCaptureProps {
+  onCapture: (blob: Blob) => void
+  onError: (message: string) => void
+}
+
+export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
+  const [isReady, setIsReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  const cleanup = useCallback(() => {
+    if (streamRef.current !== null) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current !== null) {
+      videoRef.current.srcObject = null
+    }
+    setIsReady(false)
+    setError(null)
+  }, [])
+
+  useEffect(() => {
+    return cleanup
+  }, [cleanup])
+
+  const startCamera = useCallback(async () => {
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current !== null) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
+      }
+      setIsReady(true)
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Unable to access the camera.'
+      if (message.includes('secure context') || message.includes('HTTPS')) {
+        setError(
+          'Camera requires a secure connection (HTTPS). Please use the app over HTTPS.',
+        )
+      } else if (message.includes('permission') || message.includes('denied')) {
+        setError(
+          'Camera permission was denied. Please allow camera access to submit a flood report.',
+        )
+      } else if (message.includes('not found') || message.includes('devices')) {
+        setError('No camera was found on this device.')
+      } else {
+        setError(`Camera error: ${message}`)
+      }
+      onError(message)
+    }
+  }, [onError])
+
+  useEffect(() => {
+    if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
+      setError(
+        'This browser does not support camera capture. Flood reporting requires camera access.',
+      )
+      onError('Camera API not available')
+    }
+  }, [onError])
+
+  const captureFrame = useCallback(() => {
+    if (videoRef.current === null || streamRef.current === null || !isReady) {
+      return
+    }
+
+    const video = videoRef.current
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+
+    const ctx = canvas.getContext('2d')
+    if (ctx === null) {
+      setError('Unable to create canvas for photo capture.')
+      onError('Canvas context unavailable')
+      return
+    }
+
+    ctx.drawImage(video, 0, 0)
+
+    canvas.toBlob(
+      (blob) => {
+        if (blob === null) {
+          setError('Failed to encode the captured photo.')
+          onError('Photo encoding failed')
+          return
+        }
+        if (streamRef.current !== null) {
+          streamRef.current.getTracks().forEach((track) => track.stop())
+        }
+        streamRef.current = null
+        if (videoRef.current !== null) {
+          videoRef.current.srcObject = null
+        }
+        setIsReady(false)
+        onCapture(blob)
+      },
+      'image/jpeg',
+      0.92,
+    )
+  }, [isReady, onCapture, onError])
+
+  const retake = useCallback(() => {
+    setError(null)
+    void startCamera()
+  }, [startCamera])
+
+  if (error !== null && !isReady) {
+    return (
+      <div className="camera-error" role="alert">
+        <p>{error}</p>
+        <button type="button" className="link" onClick={startCamera}>
+          Try again
+        </button>
+        <p className="muted">
+          There is no gallery or file-selection fallback. A live camera capture
+          is required to submit a flood report.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="camera-capture">
+      <div className="camera-preview">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ display: isReady ? 'block' : 'none' }}
+        />
+        {isReady && (
+          <button
+            type="button"
+            className="capture-button"
+            onClick={captureFrame}
+            aria-label="Capture photo"
+          >
+            Capture
+          </button>
+        )}
+      </div>
+
+      {!isReady && error === null && (
+        <button type="button" className="counter" onClick={() => void startCamera()}>
+          Open camera
+        </button>
+      )}
+      {isReady && (
+        <div className="camera-actions">
+          <button
+            type="button"
+            className="link"
+            onClick={cleanup}
+            aria-label="Close camera"
+          >
+            Close camera
+          </button>
+          <button
+            type="button"
+            className="link"
+            onClick={retake}
+            aria-label="Retake photo"
+          >
+            Retake
+          </button>
+          <p className="muted">
+            Point the camera at the flood scene, then tap Capture. The photo is
+            taken live from the camera — gallery selection is not available.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}

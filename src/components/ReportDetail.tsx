@@ -158,12 +158,24 @@ export function ReportDetail({
                 <span
                   className={`severity-badge severity-${report.severity}`}
                 >
-                  {report.flood_level_label}
+                  {report.alert_level_label ?? report.flood_level_label}
                 </span>{' '}
                 <span className={`status-badge status-${report.status}`}>
                   {report.status}
                 </span>
               </dd>
+            </div>
+            <div>
+              <dt>Flood type</dt>
+              <dd>{report.flood_type_label ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Depth (cm)</dt>
+              <dd>{report.depth_cm ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Landmark</dt>
+              <dd>{report.landmark ?? '—'}</dd>
             </div>
             <div>
               <dt>Barangay</dt>

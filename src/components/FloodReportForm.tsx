@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
+import { CameraCapture } from './CameraCapture'
 import { useQueue } from '../context/useQueue'
-import { FLOOD_LEVELS } from '../lib/floodLevels'
+import { ALERT_LEVELS } from '../lib/alertLevels'
+import { FLOOD_TYPES } from '../lib/alertLevels'
 import { compressPhoto } from '../lib/photo'
 import type { PhotoProgress } from '../lib/photo'
 import { setDraftDirty } from '../lib/draftGuard'
 import { getStoredToken } from '../lib/http'
 import { reverseGeocode } from '../lib/geocode'
 import type { FieldErrors } from '../types/auth'
-import type { FloodLevel } from '../types/report'
+import type { AlertLevel, FloodType } from '../types/report'
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -109,7 +111,10 @@ export function FloodReportForm({
   const { user } = useAuth()
   const { submitLevelReport } = useQueue()
   const [step, setStep] = useState<FormStep>('form')
-  const [level, setLevel] = useState<FloodLevel | ''>('')
+  const [alertLevel, setAlertLevel] = useState<AlertLevel | ''>('')
+  const [floodType, setFloodType] = useState<FloodType | ''>('')
+  const [depthCm, setDepthCm] = useState<number | null>(null)
+  const [landmark, setLandmark] = useState('')
   const [notes, setNotes] = useState('')
   const [photo, setPhoto] = useState<Blob | null>(null)
   const [photoName, setPhotoName] = useState('flood-report.jpg')
@@ -227,14 +232,17 @@ export function FloodReportForm({
 
   useEffect(() => {
     const hasDraft =
-      level !== '' || notes.trim() !== '' || photo !== null || step === 'confirm'
+      alertLevel !== '' ||
+      notes.trim() !== '' ||
+      photo !== null ||
+      step === 'confirm'
 
     setDraftDirty(hasDraft && step !== 'success')
 
     return () => {
       setDraftDirty(false)
     }
-  }, [level, notes, photo, step])
+  }, [alertLevel, notes, photo, step])
 
   function refreshLocation(): void {
     setIsLocating(true)
@@ -268,19 +276,12 @@ export function FloodReportForm({
     setPhotoPreview(photoUrlRef.current)
   }
 
-  async function handlePhotoChange(
-    event: ChangeEvent<HTMLInputElement>,
-  ): Promise<void> {
-    const file = event.target.files?.[0] ?? null
+  async function handleCapturedPhoto(file: Blob): Promise<void> {
     setPhotoError(null)
     setCompressionLabel(null)
     setCompressionStage(null)
 
-    if (file === null) {
-      setPhoto(null)
-      updatePhoto(null)
-      return
-    }
+
 
     if (!file.type.startsWith('image/')) {
       setPhoto(null)
@@ -302,7 +303,7 @@ export function FloodReportForm({
 
       setPhoto(compressed.blob)
       setPhotoName(
-        `${file.name.replace(/\.[^.]+$/, '') || 'flood-report'}.jpg`,
+        `${'flood-report'}.jpg`,
       )
       updatePhoto(compressed.blob)
       setCompressionLabel(
@@ -331,8 +332,12 @@ export function FloodReportForm({
   function validate(): boolean {
     const next: Record<string, string> = {}
 
-    if (level === '') {
-      next.flood_level = 'Select the observed flood level.'
+    if (alertLevel === '') {
+      next.alert_level = 'Select the alert level.'
+    }
+
+    if (floodType === '') {
+      next.flood_type = 'Select the flood type.'
     }
 
     if (isCompressing) {
@@ -366,7 +371,8 @@ export function FloodReportForm({
       isCompressing ||
       photo === null ||
       gps === null ||
-      level === ''
+      alertLevel === '' ||
+      floodType === ''
     ) {
       return
     }
@@ -382,7 +388,11 @@ export function FloodReportForm({
     try {
       const result = await submitLevelReport({
         payload: {
-          flood_level: level,
+          flood_level: null,
+          alert_level: alertLevel,
+          flood_type: floodType,
+          depth_cm: depthCm,
+          landmark: landmark.trim() === '' ? null : landmark.trim(),
           latitude: gps.latitude,
           longitude: gps.longitude,
           gps_accuracy: gps.accuracy,
@@ -417,7 +427,10 @@ export function FloodReportForm({
 
   function resetForm(): void {
     setStep('form')
-    setLevel('')
+    setAlertLevel('')
+    setFloodType('')
+    setDepthCm(null)
+    setLandmark('')
     setNotes('')
     setPhoto(null)
     setPhotoName('flood-report.jpg')
@@ -435,11 +448,10 @@ export function FloodReportForm({
     setDraftDirty(false)
   }
 
-  const levelError = errors.flood_level ?? serverFieldErrors.flood_level?.[0]
   const photoFieldError = errors.photo ?? serverFieldErrors.photo?.[0]
   const gpsFieldError = errors.gps ?? serverFieldErrors.latitude?.[0]
   const notesError = serverFieldErrors.notes?.[0]
-  const selectedLevel = FLOOD_LEVELS.find((option) => option.value === level)
+  const selectedAlertLevel = ALERT_LEVELS.find((option) => option.value === alertLevel)
 
   if (step === 'success' && submitResult !== null) {
     return (
@@ -449,7 +461,7 @@ export function FloodReportForm({
         <p className="form-success">
           {submitResult.message}
           {submitResult.reportId !== null && !submitResult.queued
-            ? ` Report #${submitResult.reportId} (${selectedLevel?.label ?? level}) is now with the command center.`
+            ? ` Report #${submitResult.reportId} (${selectedAlertLevel?.label ?? alertLevel}) is now with the command center.`
             : ''}
         </p>
 
@@ -482,8 +494,12 @@ export function FloodReportForm({
 
         <dl className="report-summary">
           <div>
-            <dt>Flood level</dt>
-            <dd>{selectedLevel?.label ?? level}</dd>
+            <dt>Alert level</dt>
+            <dd>{selectedAlertLevel?.label ?? alertLevel}</dd>
+          </div>
+          <div>
+            <dt>Flood type</dt>
+            <dd>{floodType}</dd>
           </div>
           <div>
             <dt>Coordinates</dt>
@@ -551,19 +567,57 @@ export function FloodReportForm({
       )}
 
       <label className="field">
-        <span>Flood level</span>
+        <span>Alert level</span>
         <select
-          value={level}
-          onChange={(event) => setLevel(event.target.value as FloodLevel | '')}
+          value={alertLevel}
+          onChange={(event) => setAlertLevel(event.target.value as AlertLevel | '')}
         >
           <option value="">Select a level</option>
-          {FLOOD_LEVELS.map((option) => (
+          {ALERT_LEVELS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
-        {levelError && <small className="field-error">{levelError}</small>}
+        {errors.alert_level && <small className="field-error">{errors.alert_level}</small>}
+      </label>
+
+      <label className="field">
+        <span>Flood type</span>
+        <select
+          value={floodType}
+          onChange={(event) => setFloodType(event.target.value as FloodType | '')}
+        >
+          <option value="">Select a type</option>
+          {FLOOD_TYPES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {errors.flood_type && <small className="field-error">{errors.flood_type}</small>}
+      </label>
+
+      <label className="field">
+        <span>Depth (cm, optional)</span>
+        <input
+          type="number"
+          min={0}
+          value={depthCm === null ? '' : depthCm}
+          onChange={(event) => {
+            const v = event.target.value
+            setDepthCm(v === '' ? null : Number(v))
+          }}
+        />
+      </label>
+
+      <label className="field">
+        <span>Landmark (optional)</span>
+        <input
+          type="text"
+          value={landmark}
+          onChange={(event) => setLandmark(event.target.value)}
+        />
       </label>
 
       <div className="gps-readout">
@@ -613,34 +667,13 @@ export function FloodReportForm({
         </button>
       </div>
 
-      <label className="field">
-        <span>Photo</span>
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          disabled={isCompressing}
-          onChange={(event) => void handlePhotoChange(event)}
-        />
-        <small className="muted">
-          Photos are optimised on this device before sending (1 MB target, 5 MB
-          maximum). The camera opens on mobile devices.
-        </small>
-        {isCompressing && (
-          <small className="muted">
-            {compressionStage ?? 'Optimising photo…'}
-          </small>
-        )}
-        {!isCompressing && compressionLabel !== null && (
-          <small className="muted">Optimised: {compressionLabel}</small>
-        )}
-        {photoError !== null && (
-          <small className="field-error">{photoError}</small>
-        )}
-        {photoFieldError && photoError === null && (
-          <small className="field-error">{photoFieldError}</small>
-        )}
-      </label>
+      <CameraCapture
+        onCapture={(blob) => void handleCapturedPhoto(blob)}
+        onError={(message) => setPhotoError(message)}
+      />
+      {photoError !== null && (
+        <small className="field-error">{photoError}</small>
+      )}
 
       {photoPreview !== null && (
         <img className="photo-preview" src={photoPreview} alt="Selected flood photo" />
