@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { AppShell, type AppView } from './AppShell'
-import type { User } from '../types/auth'
+import { AppShell } from './AppShell'
+import type { AppView, ViewSection } from '../lib/viewAccess'
+import type { AccessInterface, User } from '../types/auth'
 
 const user: User = {
   id: 7,
@@ -19,13 +20,22 @@ const user: User = {
   barangay: null,
 }
 
+const COMMAND_SECTIONS: ViewSection[] = [
+  { view: 'reports', label: 'Review queue' },
+  { view: 'map', label: 'Map' },
+  { view: 'tokens', label: 'API tokens' },
+]
+
+const FIELD_SECTIONS: ViewSection[] = [
+  { view: 'capture', label: 'New report' },
+  { view: 'impact', label: 'Impact' },
+  { view: 'reports', label: 'Reports' },
+]
+
 interface Overrides {
   activeView?: AppView
-  canSubmit?: boolean
-  canViewImpact?: boolean
-  canReview?: boolean
-  canViewMap?: boolean
-  canManageTokens?: boolean
+  iface?: AccessInterface
+  sections?: ViewSection[]
 }
 
 function render(overrides: Overrides = {}): string {
@@ -33,11 +43,8 @@ function render(overrides: Overrides = {}): string {
     <AppShell
       user={user}
       activeView={overrides.activeView ?? 'reports'}
-      canSubmit={overrides.canSubmit ?? true}
-      canViewImpact={overrides.canViewImpact ?? true}
-      canReview={overrides.canReview ?? true}
-      canViewMap={overrides.canViewMap ?? true}
-      canManageTokens={overrides.canManageTokens ?? true}
+      iface={overrides.iface ?? 'command_center'}
+      sections={overrides.sections ?? COMMAND_SECTIONS}
       onNavigate={() => {}}
       onLogout={() => {}}
       actions={<span>queue</span>}
@@ -51,9 +58,11 @@ describe('AppShell', () => {
   it('puts the skip link first and points it at the focusable main landmark', () => {
     const html = render()
 
-    expect(html.startsWith('<div class="app-shell"><a class="skip-link" href="#main-content">')).toBe(
-      true,
-    )
+    expect(
+      html.startsWith(
+        '<div class="app-shell" data-interface="command_center"><a class="skip-link" href="#main-content">',
+      ),
+    ).toBe(true)
     expect(html).toContain('<main id="main-content" tabindex="-1"')
   })
 
@@ -68,6 +77,15 @@ describe('AppShell', () => {
     expect(html).toContain('<span>queue</span>')
   })
 
+  it('names the interface the account signed in with', () => {
+    expect(render({ iface: 'command_center' })).toContain(
+      'data-interface="command_center"',
+    )
+    expect(render({ iface: 'field_reporter' })).toContain(
+      'data-interface="field_reporter"',
+    )
+  })
+
   it('marks exactly one section as the current page', () => {
     const html = render({ activeView: 'reports' })
 
@@ -76,32 +94,28 @@ describe('AppShell', () => {
     expect(html).toContain('ui-button--primary" aria-current="page">Review queue')
   })
 
-  it('hides sections the account cannot reach and renames the list', () => {
-    const html = render({
-      canSubmit: false,
-      canViewImpact: false,
-      canReview: false,
-      canViewMap: false,
-    })
+  it('renders only the sections it is given', () => {
+    const html = render({ sections: FIELD_SECTIONS, iface: 'field_reporter' })
 
-    expect(html).not.toContain('New report')
-    expect(html).not.toContain('>Impact<')
-    expect(html).not.toContain('>Map<')
+    expect(html).toContain('>New report<')
+    expect(html).toContain('>Impact<')
     expect(html).toContain('>Reports<')
-    expect(html).toContain('>API tokens<')
+    expect(html).not.toContain('>Map<')
+    expect(html).not.toContain('>API tokens<')
+  })
+
+  it('keeps the order the access module chose', () => {
+    const html = render({ sections: FIELD_SECTIONS, iface: 'field_reporter' })
+
+    expect(html.indexOf('>New report<')).toBeLessThan(html.indexOf('>Impact<'))
+    expect(html.indexOf('>Impact<')).toBeLessThan(html.indexOf('>Reports<'))
   })
 
   it('shows the impact section and marks it current', () => {
-    const html = render({ activeView: 'impact' })
+    const html = render({ activeView: 'impact', sections: FIELD_SECTIONS })
 
     expect(html).toContain('aria-current="page">Impact</button>')
     expect(html.match(/aria-current="page"/g)).toHaveLength(1)
-  })
-
-  it('hides token management from field-facing accounts', () => {
-    const html = render({ canManageTokens: false })
-
-    expect(html).not.toContain('>API tokens<')
   })
 
   it('renders the active view inside the main landmark', () => {

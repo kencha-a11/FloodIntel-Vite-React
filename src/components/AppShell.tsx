@@ -1,17 +1,13 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Button } from './ui'
-import type { User } from '../types/auth'
-
-export type AppView = 'capture' | 'impact' | 'reports' | 'map' | 'tokens'
+import type { AccessInterface, User } from '../types/auth'
+import type { AppView, ViewSection } from '../lib/viewAccess'
 
 interface AppShellProps {
   user: User
   activeView: AppView
-  canSubmit: boolean
-  canViewImpact: boolean
-  canReview: boolean
-  canViewMap: boolean
-  canManageTokens: boolean
+  iface: AccessInterface
+  sections: readonly ViewSection[]
   onNavigate: (view: AppView) => void
   onLogout: () => void
   actions?: ReactNode
@@ -29,11 +25,8 @@ function currentPage(isCurrent: boolean): 'page' | undefined {
 export function AppShell({
   user,
   activeView,
-  canSubmit,
-  canViewImpact,
-  canReview,
-  canViewMap,
-  canManageTokens,
+  iface,
+  sections,
   onNavigate,
   onLogout,
   actions,
@@ -52,7 +45,7 @@ export function AppShell({
   }, [activeView])
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-interface={iface}>
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
@@ -77,53 +70,16 @@ export function AppShell({
       </header>
 
       <nav className="app-shell-nav" aria-label="Main sections">
-        {canSubmit && (
+        {sections.map((section) => (
           <Button
-            variant={navVariant(activeView === 'capture')}
-            aria-current={currentPage(activeView === 'capture')}
-            onClick={() => onNavigate('capture')}
+            key={section.view}
+            variant={navVariant(activeView === section.view)}
+            aria-current={currentPage(activeView === section.view)}
+            onClick={() => onNavigate(section.view)}
           >
-            New report
+            {section.label}
           </Button>
-        )}
-
-        {canViewImpact && (
-          <Button
-            variant={navVariant(activeView === 'impact')}
-            aria-current={currentPage(activeView === 'impact')}
-            onClick={() => onNavigate('impact')}
-          >
-            Impact
-          </Button>
-        )}
-
-        <Button
-          variant={navVariant(activeView === 'reports')}
-          aria-current={currentPage(activeView === 'reports')}
-          onClick={() => onNavigate('reports')}
-        >
-          {canReview ? 'Review queue' : 'Reports'}
-        </Button>
-
-        {canViewMap && (
-          <Button
-            variant={navVariant(activeView === 'map')}
-            aria-current={currentPage(activeView === 'map')}
-            onClick={() => onNavigate('map')}
-          >
-            Map
-          </Button>
-        )}
-
-        {canManageTokens && (
-          <Button
-            variant={navVariant(activeView === 'tokens')}
-            aria-current={currentPage(activeView === 'tokens')}
-            onClick={() => onNavigate('tokens')}
-          >
-            API tokens
-          </Button>
-        )}
+        ))}
       </nav>
 
       <main

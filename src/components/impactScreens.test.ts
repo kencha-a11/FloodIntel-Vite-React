@@ -36,12 +36,17 @@ describe('impact reporting screens', () => {
 
   it('separates filing from reading the barangay status', () => {
     const app = read('../App.tsx')
+    const access = read('../lib/viewAccess.ts')
 
-    expect(app).toContain(`const ABILITY_SUBMIT_IMPACT_REPORT = 'submit-impact-report'`)
-    expect(app).toContain(
+    expect(access).toContain(
+      `const ABILITY_SUBMIT_IMPACT_REPORT = 'submit-impact-report'`,
+    )
+    expect(access).toContain(
       `canFileImpact || abilities.includes(ABILITY_VIEW_OWN_BARANGAY)`,
     )
-    expect(app).toContain('<ImpactReportsView canFileImpact={canFileImpact} />')
+    expect(app).toContain(
+      '<ImpactReportsView canFileImpact={access.canFileImpact} />',
+    )
   })
 
   it('refreshes the status list after a report is filed', () => {

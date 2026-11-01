@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useAuth } from './context/useAuth'
-import { AppShell, type AppView } from './components/AppShell'
+import { AppShell } from './components/AppShell'
 import { AuthShell } from './components/AuthShell'
 import { EmailVerificationResult } from './components/EmailVerificationResult'
 import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
@@ -14,18 +14,17 @@ import { LoginForm } from './components/LoginForm'
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
 import { QueueIndicator } from './components/QueueIndicator'
 import { readEmailVerificationStatus } from './lib/emailVerification'
+import {
+  isViewReachable,
+  resolveView,
+  viewAccess,
+  type AppView,
+} from './lib/viewAccess'
 import './App.css'
 
 const MapView = lazy(() => import('./components/MapView'))
 
 type AuthMode = 'login' | 'forgot-password'
-
-const ABILITY_SUBMIT_FLOOD_REPORT = 'submit-flood-report'
-const ABILITY_SUBMIT_IMPACT_REPORT = 'submit-impact-report'
-const ABILITY_VIEW_OWN_BARANGAY = 'view-own-barangay'
-const ABILITY_VIEW_ALL_BARANGAYS = 'view-all-barangays'
-const ABILITY_MANAGE_USERS = 'manage-users'
-const ABILITY_VIEW_VALIDATED_REPORTS = 'view-validated-reports'
 
 function isResetPasswordRoute(): boolean {
   return window.location.pathname.replace(/\/+$/, '') === '/reset-password'
@@ -101,18 +100,8 @@ function App() {
     )
   }
 
-  const abilities = user.abilities ?? []
-  const canSubmit = abilities.includes(ABILITY_SUBMIT_FLOOD_REPORT)
-  const canFileImpact = abilities.includes(ABILITY_SUBMIT_IMPACT_REPORT)
-  const canViewImpact =
-    canFileImpact || abilities.includes(ABILITY_VIEW_OWN_BARANGAY)
-  const canReview =
-    abilities.includes(ABILITY_VIEW_ALL_BARANGAYS) ||
-    abilities.includes(ABILITY_MANAGE_USERS)
-  const canViewMap = abilities.includes(ABILITY_VIEW_VALIDATED_REPORTS)
-  // UX convenience only; the server authorizes every token request (D-08).
-  const canManageTokens = user.interface === 'command_center'
-  const activeView = view ?? (canSubmit ? 'capture' : 'reports')
+  const access = viewAccess(user)
+  const activeView = resolveView(access, view)
 
   function navigate(next: AppView | null): void {
     setCorrectsReportId(null)
@@ -123,18 +112,15 @@ function App() {
     <AppShell
       user={user}
       activeView={activeView}
-      canSubmit={canSubmit}
-      canViewImpact={canViewImpact}
-      canReview={canReview}
-      canViewMap={canViewMap}
-      canManageTokens={canManageTokens}
+      iface={access.iface}
+      sections={access.sections}
       onNavigate={navigate}
       onLogout={logout}
       actions={<QueueIndicator />}
     >
       <PwaUpdatePrompt />
 
-      {activeView === 'capture' && canSubmit && (
+      {activeView === 'capture' && (
         <FloodReportForm
           correctsReportId={correctsReportId}
           onCorrectionCleared={() => setCorrectsReportId(null)}
@@ -143,12 +129,12 @@ function App() {
       )}
 
       {activeView === 'impact' && (
-        <ImpactReportsView canFileImpact={canFileImpact} />
+        <ImpactReportsView canFileImpact={access.canFileImpact} />
       )}
 
       {activeView === 'reports' && (
         <ReviewWorkspace
-          canFilter={canReview}
+          canFilter={access.canReview}
           selectedReportId={selectedReportId}
           onSelect={setSelectedReportId}
           onClear={() => setSelectedReportId(null)}
@@ -161,11 +147,11 @@ function App() {
 
       {activeView === 'map' && (
         <Suspense fallback={<p className="muted">Loading map…</p>}>
-          <MapView canViewValidatedFeed={canViewMap} />
+          <MapView canViewValidatedFeed={isViewReachable(access, 'map')} />
         </Suspense>
       )}
 
-      {activeView === 'tokens' && canManageTokens && (
+      {activeView === 'tokens' && (
         <TokenManager onBack={() => setView(null)} />
       )}
     </AppShell>
