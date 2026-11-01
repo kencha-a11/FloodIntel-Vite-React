@@ -723,10 +723,18 @@ export function FloodReportForm({
         className="photo-field"
         role="group"
         aria-labelledby="report-photo-label"
-        aria-describedby={photoMessage === null ? undefined : 'report-photo-error'}
+        aria-describedby={
+          photoMessage === null
+            ? 'report-photo-guidance'
+            : 'report-photo-guidance report-photo-error'
+        }
         aria-invalid={photoMessage === null ? undefined : true}
       >
         <span className="field-label" id="report-photo-label">Photo</span>
+        <small id="report-photo-guidance" className="muted">
+          Show the waterline against a meter stick or the gauge post, and include the
+          road. A dry post on its own does not show a flood.
+        </small>
         <CameraCapture
           onCapture={(blob) => void handleCapturedPhoto(blob)}
           onError={(message) => setPhotoError(message)}

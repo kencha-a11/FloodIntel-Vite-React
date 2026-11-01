@@ -24,14 +24,22 @@ describe('capture messages are tied to their fields (design §8)', () => {
     expect(form).toContain('id="report-location-error"')
   })
 
-  it('names the photo group and describes it with the capture error', () => {
+  it('names the photo group and describes it with the guidance and the capture error', () => {
     expect(form).toContain('aria-labelledby="report-photo-label"')
     expect(form).toContain('id="report-photo-label"')
-    expect(form).toContain(
-      "aria-describedby={photoMessage === null ? undefined : 'report-photo-error'}",
-    )
+    expect(form).toContain("? 'report-photo-guidance'")
+    expect(form).toContain(": 'report-photo-guidance report-photo-error'")
     expect(form).toContain('aria-invalid={photoMessage === null ? undefined : true}')
     expect(form).toContain('id="report-photo-error"')
+  })
+
+  it('states the accepted photo subject once, before the camera control (D-116)', () => {
+    expect(form).toContain('id="report-photo-guidance"')
+    expect(form).toContain('Show the waterline against a meter stick or the gauge post')
+    expect(form).toContain('A dry post on its own does not show a flood.')
+    expect(form.indexOf('report-photo-guidance" className')).toBeLessThan(
+      form.indexOf('<CameraCapture'),
+    )
   })
 
   it('keeps the GPS acquisition failure announced', () => {
