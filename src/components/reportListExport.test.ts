@@ -19,6 +19,16 @@ describe('report queue export wiring', () => {
     expect(list).toContain('Matches notes, landmark, address, or reporter name.')
   })
 
+  it('filters by flood type from the shared list and names it in the row', () => {
+    const list = read('./ReportList.tsx')
+
+    expect(list).toContain('id="filter-type"')
+    expect(list).toContain("updateFilter('flood_type'")
+    expect(list).toContain('FLOOD_TYPES.map(')
+    expect(list).toContain("flood_type: '',")
+    expect(list).toContain('floodTypeLabel(report.flood_type)')
+  })
+
   it('exports through the shared filters with the applied dates', () => {
     const list = read('./ReportList.tsx')
 

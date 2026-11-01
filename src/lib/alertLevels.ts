@@ -13,3 +13,7 @@ export const FLOOD_TYPES: { value: FloodTypeValue; label: string }[] = [
   { value: 'river_overflow', label: 'River overflow' },
   { value: 'ponding', label: 'Ponding' },
 ]
+
+export function floodTypeLabel(value: FloodTypeValue): string {
+  return FLOOD_TYPES.find((option) => option.value === value)?.label ?? value
+}

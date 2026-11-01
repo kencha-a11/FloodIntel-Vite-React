@@ -143,6 +143,7 @@ export type FloodReportInput =
 export interface ReportFilters {
   q: string
   flood_level: FloodLevel | ''
+  flood_type: FloodType | ''
   alert_level: AlertLevel | ''
   status: FloodReportStatus | ''
   barangay_id: number | ''

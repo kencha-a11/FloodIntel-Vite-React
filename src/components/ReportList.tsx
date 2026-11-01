@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/useAuth'
+import { FLOOD_TYPES, floodTypeLabel } from '../lib/alertLevels'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
 import { NOT_RECORDED, formatInstantWithAge } from '../lib/dateTime'
 import { FLOOD_LEVELS } from '../lib/floodLevels'
@@ -46,12 +47,14 @@ import type {
   FloodLevel,
   FloodReport,
   FloodReportStatus,
+  FloodType,
   ReportFilters,
 } from '../types/report'
 
 const EMPTY_FILTERS: ReportFilters = {
   q: '',
   flood_level: '',
+  flood_type: '',
   alert_level: '',
   status: '',
   barangay_id: '',
@@ -319,6 +322,22 @@ export function ReportList({
           </Select>
         </Field>
 
+        <Field id="filter-type" label="Flood type">
+          <Select
+            value={filters.flood_type}
+            onChange={(event) =>
+              updateFilter('flood_type', event.target.value as FloodType | '')
+            }
+          >
+            <option value="">All flood types</option>
+            {FLOOD_TYPES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
         <Field id="filter-alert" label="Alert level">
           <Select
             value={filters.alert_level}
@@ -455,7 +474,10 @@ export function ReportList({
                   </div>
                   <p className="report-row-meta">
                     {report.barangay.name} · {report.user.first_name}{' '}
-                    {report.user.last_name}
+                    {report.user.last_name} ·{' '}
+                    {report.flood_type === null
+                      ? 'Flood type not recorded'
+                      : floodTypeLabel(report.flood_type)}
                   </p>
                   <InstantRow label="Observed" value={report.reported_at} />
                   <InstantRow label="Received" value={report.created_at} />

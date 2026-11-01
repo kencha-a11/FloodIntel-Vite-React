@@ -1,4 +1,5 @@
 import type { ReportFilters } from '../types/report'
+import { floodTypeLabel } from './alertLevels'
 import { API_BASE_URL, AuthApiError, NetworkTimeoutError } from './http'
 import { buildReportQuery } from './reportApi'
 import { alertTierLabel, reportStatusLabel } from './vocabulary'
@@ -70,6 +71,7 @@ export function reportExportFilename(filters: ReportFilters): string {
   const parts = [
     'flood-reports',
     filters.status === '' ? 'all-statuses' : filters.status,
+    filters.flood_type === '' ? 'all-types' : filters.flood_type,
     filters.alert_level === '' ? 'all-alerts' : filters.alert_level,
   ]
 
@@ -95,6 +97,7 @@ export function reportExportFilename(filters: ReportFilters): string {
 export function reportExportSummary(filters: ReportFilters): string {
   const parts = [
     filters.status === '' ? 'All statuses' : reportStatusLabel(filters.status),
+    filters.flood_type === '' ? 'All flood types' : floodTypeLabel(filters.flood_type),
     filters.alert_level === '' ? 'All alert levels' : alertTierLabel(filters.alert_level),
   ]
 

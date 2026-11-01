@@ -223,6 +223,10 @@ export function buildReportQuery(
     query.set('flood_level', filters.flood_level)
   }
 
+  if (filters.flood_type !== '') {
+    query.set('flood_type', filters.flood_type)
+  }
+
   if (filters.alert_level !== '') {
     query.set('alert_level', filters.alert_level)
   }
