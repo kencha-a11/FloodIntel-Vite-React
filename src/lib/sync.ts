@@ -1,9 +1,7 @@
 import {
-  API_BASE_URL,
   AuthApiError,
   NetworkTimeoutError,
   getStoredToken,
-  request,
 } from './http'
 import { compressPhoto } from './photo'
 import {
@@ -17,7 +15,7 @@ import {
   updateQueueItem,
 } from './offlineQueue'
 import { isSyncWindowExpired, readLastAuthenticatedAt } from './session'
-import type { FloodReport, FloodReportInput, Paginated } from '../types/report'
+import type { FloodReportInput } from '../types/report'
 import type {
   QueueItem,
   QueueItemPatch,
@@ -43,11 +41,8 @@ const BLOCKED_RETRY_MS = 60 * 60_000
 
 const SEND_INTERVAL_MS = 6_000
 
-const REPLAY_TOLERANCE_MS = 10_000
-
 export interface SyncSummary {
   sent: number
-  merged: number
   failed: number
   remaining: number
   authRequired: boolean
@@ -67,10 +62,6 @@ export interface SyncDeps {
   ) => Promise<QueueItem | null>
   remove: (id: string) => Promise<void>
   send: (token: string, item: QueueItem) => Promise<{ id: number }>
-  findDuplicate: (
-    token: string,
-    item: QueueItem,
-  ) => Promise<FloodReport | null>
   sendIntervalMs: number
   compressPhoto?: typeof compressPhoto
   random?: () => number
@@ -115,62 +106,6 @@ export function restartQueueItemPatch(): QueueItemPatch {
     nextAttemptAt: null,
     lastError: null,
   }
-}
-
-export function isReplayMatch(
-  report: FloodReport,
-  item: QueueItem,
-): boolean {
-  // Duplicate lookup reads the level-report endpoint, so only a level item
-  // can have a match there.
-  if (item.kind !== 'level') {
-    return false
-  }
-
-  // A correction is a new report: the returned report it answers is never a
-  // replay of it, even when the observation matches.
-  if (
-    item.payload.supersedes_id !== undefined &&
-    item.payload.supersedes_id !== null &&
-    report.id === item.payload.supersedes_id
-  ) {
-    return false
-  }
-
-  if (report.user.id !== item.userId) {
-    return false
-  }
-
-  // Branch on the item's vocabulary: new items compare alert_level;
-  // legacy items compare flood_level. Do not rewrite legacy payloads
-  // into alert tiers.
-  if (item.payload.alert_level !== null && item.payload.alert_level !== undefined) {
-    if (report.alert_level !== item.payload.alert_level) {
-      return false
-    }
-  } else {
-    if (report.flood_level !== item.payload.flood_level) {
-      return false
-    }
-  }
-
-  if (
-    Math.abs(report.latitude - item.payload.latitude) > 0.000001 ||
-    Math.abs(report.longitude - item.payload.longitude) > 0.000001
-  ) {
-    return false
-  }
-
-  const observed = item.payload.reported_at ?? item.observedAt
-
-  // One candidate, not two: matching receipt time as an alternative would
-  // merge two genuine reports filed within the window.
-  const candidate = report.reported_at ?? report.created_at
-
-  return (
-    Math.abs(Date.parse(candidate) - Date.parse(observed)) <=
-    REPLAY_TOLERANCE_MS
-  )
 }
 
 // The server's clock is the only external reference on the path, so the
@@ -224,28 +159,6 @@ async function sendItem(
   )
 }
 
-async function findDuplicateReport(
-  token: string,
-  item: QueueItem,
-): Promise<FloodReport | null> {
-  const from = new Date(
-    Date.parse(item.observedAt) - 60_000,
-  ).toISOString()
-  const query = new URLSearchParams({
-    from,
-    per_page: '50',
-  })
-
-  const response = await request<Paginated<FloodReport>>(
-    `${API_BASE_URL}/flood-reports?${query.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  )
-
-  return (
-    response.data.find((report) => isReplayMatch(report, item)) ?? null
-  )
-}
-
 export function createDefaultDeps(): SyncDeps {
   return {
     getToken: getStoredToken,
@@ -259,7 +172,6 @@ export function createDefaultDeps(): SyncDeps {
     update: updateQueueItem,
     remove: removeQueueItem,
     send: sendItem,
-    findDuplicate: findDuplicateReport,
     sendIntervalMs: SEND_INTERVAL_MS,
   }
 }
@@ -315,7 +227,6 @@ export async function runSync(
 ): Promise<SyncSummary> {
   const summary: SyncSummary = {
     sent: 0,
-    merged: 0,
     failed: 0,
     remaining: 0,
     authRequired: false,
@@ -367,24 +278,6 @@ export async function runSync(
       }
     }
 
-    if (item.status === 'syncing') {
-      const duplicate = await safeFindDuplicate(deps, token, item)
-
-      if (duplicate !== null) {
-        await deps.remove(item.id)
-        summary.merged += 1
-        summary.outcomes.push(
-          outcome(
-            item,
-            'merged',
-            `Report #${duplicate.id} was already received.`,
-            duplicate.id,
-          ),
-        )
-        continue
-      }
-    }
-
     await deps.update(item.id, { status: 'syncing' })
 
     const sentAt = deps.now()
@@ -401,22 +294,6 @@ export async function runSync(
       continue
     } catch (err) {
       if (!(err instanceof AuthApiError)) {
-        const duplicate = await safeFindDuplicate(deps, token, item)
-
-        if (duplicate !== null) {
-          await deps.remove(item.id)
-          summary.merged += 1
-          summary.outcomes.push(
-            outcome(
-              item,
-              'merged',
-              `Report #${duplicate.id} was already received.`,
-              duplicate.id,
-            ),
-          )
-          continue
-        }
-
         await scheduleRetry(item, err, deps, summary)
         continue
       }
@@ -564,22 +441,6 @@ export async function runSync(
       }
 
       if (err.status >= 500) {
-        const duplicate = await safeFindDuplicate(deps, token, item)
-
-        if (duplicate !== null) {
-          await deps.remove(item.id)
-          summary.merged += 1
-          summary.outcomes.push(
-            outcome(
-              item,
-              'merged',
-              `Report #${duplicate.id} was already received.`,
-              duplicate.id,
-            ),
-          )
-          continue
-        }
-
         await scheduleRetry(item, err, deps, summary)
         continue
       }
@@ -598,18 +459,6 @@ export async function runSync(
   summary.remaining = (await deps.list(userId)).length
 
   return summary
-}
-
-async function safeFindDuplicate(
-  deps: SyncDeps,
-  token: string,
-  item: QueueItem,
-): Promise<FloodReport | null> {
-  try {
-    return await deps.findDuplicate(token, item)
-  } catch {
-    return null
-  }
 }
 
 async function scheduleRetry(
@@ -659,7 +508,6 @@ async function stopRetrying(
 
 const emptySummary = (): SyncSummary => ({
   sent: 0,
-  merged: 0,
   failed: 0,
   remaining: 0,
   authRequired: false,

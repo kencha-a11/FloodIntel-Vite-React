@@ -70,7 +70,6 @@ export type QueueItemPatch = Partial<QueueItemBase> & {
 
 export type QueueOutcomeStatus =
   | 'sent'
-  | 'merged'
   | 'queued'
   | 'failed'
   | 'auth-required'

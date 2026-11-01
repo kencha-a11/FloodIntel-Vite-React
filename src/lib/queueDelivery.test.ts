@@ -47,7 +47,6 @@ function summary(
 ): SyncSummary {
   return {
     sent: 0,
-    merged: 0,
     failed: 0,
     remaining,
     authRequired: false,

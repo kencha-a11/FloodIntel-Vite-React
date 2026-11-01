@@ -4,7 +4,6 @@ import {
   backoffDelay,
   correctedObservationTime,
   hasExhaustedRetries,
-  isReplayMatch,
   restartQueueItemPatch,
   runSync,
   terminalRetryMessage,
@@ -179,7 +178,6 @@ function createHarness(
 
       return makeReport(item)
     },
-    findDuplicate: async () => null,
     sendIntervalMs: 0,
     random: () => 0.5,
     ...overrides,
@@ -538,32 +536,34 @@ describe('runSync', () => {
     )
   })
 
-  it('merges a report found on the server after an ambiguous failure', async () => {
-    const item = makeItem()
-    const harness = createHarness([item], {
-      send: async () => {
-        throw new TypeError('Failed to fetch')
-      },
-      findDuplicate: async (_token, queued) => makeReport(queued),
-    })
+  it('re-sends an interrupted syncing item instead of guessing', async () => {
+    const item = makeItem({ status: 'syncing' })
+    const harness = createHarness([item])
     const summary = await runSync(1, harness.deps)
 
-    expect(summary.merged).toBe(1)
-    expect(summary.remaining).toBe(0)
+    // The record's own id is the client_uuid, so the server answers a replay
+    // with the stored report; the client never needs a duplicate lookup.
+    expect(harness.sent).toHaveLength(1)
+    expect(harness.sent[0].id).toBe(item.id)
+    expect(summary.sent).toBe(1)
     expect(harness.store.size).toBe(0)
-    expect(summary.outcomes[0].status).toBe('merged')
+    expect(summary.outcomes[0].status).toBe('sent')
   })
 
-  it('reconciles an interrupted syncing item on the next run', async () => {
-    const item = makeItem({ status: 'syncing' })
-    const harness = createHarness([item], {
-      findDuplicate: async (_token, queued) => makeReport(queued),
+  it('retries a 5xx answer instead of removing the queued report', async () => {
+    const harness = createHarness([makeItem()], {
+      send: async () => {
+        throw new AuthApiError('Server error.', 503)
+      },
     })
     const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
 
-    expect(summary.merged).toBe(1)
-    expect(harness.sent).toEqual([])
-    expect(harness.store.size).toBe(0)
+    expect(item?.status).toBe('queued')
+    expect(item?.attempts).toBe(1)
+    expect(item?.nextAttemptAt).toBe(NOW + 15_000)
+    expect(summary.remaining).toBe(1)
+    expect(summary.outcomes[0].status).toBe('queued')
   })
 
   it('stops the batch and retries later on 429', async () => {
@@ -743,58 +743,5 @@ describe('backoffDelay', () => {
     expect(backoffDelay(1, () => 1)).toBe(18_000)
     expect(backoffDelay(6, () => 0)).toBe(48 * 60_000)
     expect(backoffDelay(6, () => 1)).toBe(72 * 60_000)
-  })
-})
-
-describe('isReplayMatch', () => {
-  it('matches the same report captured on this device', () => {
-    const item = makeItem()
-
-    expect(isReplayMatch(makeReport(item), item)).toBe(true)
-  })
-
-  it('never matches an impact item against a level report', () => {
-    const impact = {
-      ...makeItem(),
-      kind: 'impact' as const,
-      payload: {
-        event_id: 3,
-        families: 10,
-        individuals: 42,
-        remarks: null,
-        reported_at: '2026-10-21T02:00:00.000Z',
-      },
-    }
-
-    expect(isReplayMatch(makeReport(makeItem()), impact)).toBe(false)
-  })
-
-  it('never matches a correction against the report it answers', () => {
-    const item = makeItem()
-    item.payload.supersedes_id = 12
-    const correction = { ...makeReport(item), id: 12 }
-
-    expect(isReplayMatch(correction, item)).toBe(false)
-    expect(isReplayMatch({ ...correction, id: 13 }, item)).toBe(true)
-  })
-
-  it('rejects reports from another user, level, place, or time', () => {
-    const item = makeItem()
-    const base = makeReport(item)
-
-    expect(
-      isReplayMatch(
-        { ...base, user: { ...base.user, id: 2 } },
-        item,
-      ),
-    ).toBe(false)
-    expect(isReplayMatch({ ...base, flood_level: 'waist' }, item)).toBe(false)
-    expect(isReplayMatch({ ...base, latitude: 14.6 }, item)).toBe(false)
-    expect(
-      isReplayMatch(
-        { ...base, reported_at: '2026-10-21T02:00:30.000Z' },
-        item,
-      ),
-    ).toBe(false)
   })
 })

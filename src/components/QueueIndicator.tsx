@@ -65,7 +65,7 @@ function observedInstant(observedAt: string): string {
 }
 
 function noticeTone(outcome: QueueOutcome): AlertTone {
-  if (outcome.status === 'sent' || outcome.status === 'merged') {
+  if (outcome.status === 'sent') {
     return 'success'
   }
 
