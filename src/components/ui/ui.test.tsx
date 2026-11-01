@@ -181,6 +181,12 @@ describe('Alert', () => {
       ),
     ).toContain('role="alert"')
   })
+
+  it('carries an id so a field can describe itself with it', () => {
+    expect(render(<Alert tone="danger" id="photo-error">Failed</Alert>)).toContain(
+      'id="photo-error"',
+    )
+  })
 })
 
 describe('layout primitives', () => {

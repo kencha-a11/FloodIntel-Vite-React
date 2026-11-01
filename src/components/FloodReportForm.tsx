@@ -4,8 +4,7 @@ import { useAuth } from '../context/useAuth'
 import { CameraCapture } from './CameraCapture'
 import { Alert, Button, Field, Select, Textarea, TextInput } from './ui'
 import { useQueue } from '../context/useQueue'
-import { ALERT_LEVELS } from '../lib/alertLevels'
-import { FLOOD_TYPES } from '../lib/alertLevels'
+import { ALERT_LEVELS, FLOOD_TYPES, floodTypeLabel } from '../lib/alertLevels'
 import { compressPhoto } from '../lib/photo'
 import type { PhotoProgress } from '../lib/photo'
 import { setDraftDirty } from '../lib/draftGuard'
@@ -454,15 +453,19 @@ export function FloodReportForm({
     setServerFieldErrors({})
     setSubmitResult(null)
     setFailedQueueId(null)
+    setGps(null)
     setAddress(null)
     setAddressStatus('idle')
     addressAttempt.current += 1
     setDraftDirty(false)
+    refreshLocation()
   }
 
   const photoFieldError = errors.photo ?? serverFieldErrors.photo?.[0]
   const gpsFieldError = errors.gps ?? serverFieldErrors.latitude?.[0]
   const notesError = serverFieldErrors.notes?.[0]
+  const photoMessage = photoError ?? photoFieldError ?? null
+  const locationMessage = gpsError ?? gpsFieldError ?? null
   const selectedAlertLevel = ALERT_LEVELS.find((option) => option.value === alertLevel)
 
   if (step === 'success' && submitResult !== null) {
@@ -507,7 +510,7 @@ export function FloodReportForm({
           </div>
           <div>
             <dt>Flood type</dt>
-            <dd>{floodType}</dd>
+            <dd>{floodType === '' ? '' : floodTypeLabel(floodType)}</dd>
           </div>
           <div>
             <dt>Coordinates</dt>
@@ -646,40 +649,53 @@ export function FloodReportForm({
         />
       </Field>
 
-      <div className="gps-readout">
-        <span className="field-label">Location</span>
+      <div
+        className="gps-readout"
+        role="group"
+        aria-labelledby="report-location-label"
+        aria-describedby={locationMessage === null ? undefined : 'report-location-error'}
+        aria-invalid={locationMessage === null ? undefined : true}
+      >
+        <span className="field-label" id="report-location-label">Location</span>
         {isLocating ? (
           <p className="muted">Acquiring GPS coordinates…</p>
-        ) : gps !== null ? (
-          <>
-            <p className="muted">
-              {formatCoordinates(gps)} ({formatAccuracy(gps.accuracy)})
-            </p>
-            <p className="muted">
-              {describeAddressStatus(addressStatus, address)}
-              {addressStatus === 'unavailable' && (
-                <>
-                  {' '}
-                  <Button
-                    variant="quiet"
-                    onClick={() => {
-                      if (gps !== null) {
-                        resolveAddress(gps)
-                      }
-                    }}
-                  >
-                    Retry
-                  </Button>
-                </>
-              )}
-            </p>
-          </>
         ) : (
-          <Alert tone="danger">{gpsError ?? 'GPS coordinates are required.'}</Alert>
+          gps !== null && (
+            <>
+              <p className="muted">
+                {formatCoordinates(gps)} ({formatAccuracy(gps.accuracy)})
+              </p>
+              <p className="muted">
+                {describeAddressStatus(addressStatus, address)}
+                {addressStatus === 'unavailable' && (
+                  <>
+                    {' '}
+                    <Button
+                      variant="quiet"
+                      onClick={() => {
+                        if (gps !== null) {
+                          resolveAddress(gps)
+                        }
+                      }}
+                    >
+                      Retry
+                    </Button>
+                  </>
+                )}
+              </p>
+            </>
+          )
         )}
-        {gpsFieldError && !gpsError && (
-          <small className="field-error">{gpsFieldError}</small>
-        )}
+        {locationMessage !== null &&
+          (gpsError !== null ? (
+            <Alert tone="danger" id="report-location-error">
+              {gpsError}
+            </Alert>
+          ) : (
+            <small id="report-location-error" className="field-error">
+              {locationMessage}
+            </small>
+          ))}
         <Button
           variant="quiet"
           disabled={isLocating}
@@ -689,23 +705,30 @@ export function FloodReportForm({
         </Button>
       </div>
 
-      <CameraCapture
-        onCapture={(blob) => void handleCapturedPhoto(blob)}
-        onError={(message) => setPhotoError(message)}
-      />
-      {isCompressing && compressionStage !== null && (
-        <small className="muted">{compressionStage}</small>
-      )}
-      {!isCompressing && compressionLabel !== null && (
-        <small className="muted">Photo optimised: {compressionLabel}</small>
-      )}
-      {photoError !== null ? (
-        <small className="field-error">{photoError}</small>
-      ) : (
-        photoFieldError !== undefined && (
-          <small className="field-error">{photoFieldError}</small>
-        )
-      )}
+      <div
+        className="photo-field"
+        role="group"
+        aria-labelledby="report-photo-label"
+        aria-describedby={photoMessage === null ? undefined : 'report-photo-error'}
+        aria-invalid={photoMessage === null ? undefined : true}
+      >
+        <span className="field-label" id="report-photo-label">Photo</span>
+        <CameraCapture
+          onCapture={(blob) => void handleCapturedPhoto(blob)}
+          onError={(message) => setPhotoError(message)}
+        />
+        {isCompressing && compressionStage !== null && (
+          <small className="muted">{compressionStage}</small>
+        )}
+        {!isCompressing && compressionLabel !== null && (
+          <small className="muted">Photo optimised: {compressionLabel}</small>
+        )}
+        {photoMessage !== null && (
+          <small id="report-photo-error" className="field-error">
+            {photoMessage}
+          </small>
+        )}
+      </div>
 
       {photoPreview !== null && (
         <img className="photo-preview" src={photoPreview} alt="Selected flood photo" />

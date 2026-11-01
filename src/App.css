@@ -517,6 +517,13 @@
   }
 }
 
+.photo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
 .photo-preview {
   display: block;
   width: 100%;

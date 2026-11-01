@@ -46,29 +46,25 @@ export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
         err instanceof Error
           ? err.message
           : 'Unable to access the camera.'
-      if (message.includes('secure context') || message.includes('HTTPS')) {
-        setError(
-          'Camera requires a secure connection (HTTPS). Please use the app over HTTPS.',
-        )
-      } else if (message.includes('permission') || message.includes('denied')) {
-        setError(
-          'Camera permission was denied. Please allow camera access to submit a flood report.',
-        )
-      } else if (message.includes('not found') || message.includes('devices')) {
-        setError('No camera was found on this device.')
-      } else {
-        setError(`Camera error: ${message}`)
-      }
-      onError(message)
+      const reason =
+        message.includes('secure context') || message.includes('HTTPS')
+          ? 'Camera requires a secure connection (HTTPS). Please use the app over HTTPS.'
+          : message.includes('permission') || message.includes('denied')
+            ? 'Camera permission was denied. Please allow camera access to submit a flood report.'
+            : message.includes('not found') || message.includes('devices')
+              ? 'No camera was found on this device.'
+              : `Camera error: ${message}`
+      setError(reason)
+      onError(reason)
     }
   }, [onError])
 
   useEffect(() => {
     if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
-      setError(
-        'This browser does not support camera capture. Flood reporting requires camera access.',
-      )
-      onError('Camera API not available')
+      const reason =
+        'This browser does not support camera capture. Flood reporting requires camera access.'
+      setError(reason)
+      onError(reason)
     }
   }, [onError])
 
@@ -84,8 +80,9 @@ export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
 
     const ctx = canvas.getContext('2d')
     if (ctx === null) {
-      setError('Unable to create canvas for photo capture.')
-      onError('Canvas context unavailable')
+      const reason = 'Unable to create canvas for photo capture.'
+      setError(reason)
+      onError(reason)
       return
     }
 
@@ -95,7 +92,7 @@ export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
       (blob) => {
         if (blob === null) {
           setError('Failed to encode the captured photo.')
-          onError('Photo encoding failed')
+          onError('Failed to encode the captured photo.')
           return
         }
         if (streamRef.current !== null) {

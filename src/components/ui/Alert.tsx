@@ -7,15 +7,20 @@ export interface AlertProps {
   children: ReactNode
   className?: string
   role?: 'alert' | 'status'
+  id?: string
 }
 
-export function Alert({ tone = 'info', children, className, role }: AlertProps) {
+export function Alert({ tone = 'info', children, className, role, id }: AlertProps) {
   const classes = ['ui-alert', `ui-alert--${tone}`, className ?? '']
     .filter((value) => value !== '')
     .join(' ')
 
   return (
-    <p className={classes} role={role ?? (tone === 'danger' ? 'alert' : 'status')}>
+    <p
+      id={id}
+      className={classes}
+      role={role ?? (tone === 'danger' ? 'alert' : 'status')}
+    >
       {children}
     </p>
   )
