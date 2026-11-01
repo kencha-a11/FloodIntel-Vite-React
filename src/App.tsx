@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell'
 import { AuthShell } from './components/AuthShell'
 import { EmailVerificationResult } from './components/EmailVerificationResult'
 import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
+import { AccessTagList } from './components/AccessTagList'
 import { FloodReportForm } from './components/FloodReportForm'
 import { ImpactReportsView } from './components/ImpactReportsView'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
@@ -154,6 +155,10 @@ function App() {
             canViewValidatedFeed={access.permissions.viewValidatedFeed}
           />
         </Suspense>
+      )}
+
+      {activeView === 'tags' && (
+        <AccessTagList permissions={access.permissions} />
       )}
 
       {activeView === 'tokens' && (

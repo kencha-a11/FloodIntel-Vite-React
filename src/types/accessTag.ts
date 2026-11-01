@@ -21,16 +21,19 @@ export interface AccessTagTypeOption {
   requires_note: boolean
 }
 
+/** One account as a tag names it, live or retired (FR-114, FR-121). */
+export interface AccessTagActor {
+  id: number
+  first_name: string
+  last_name: string
+  role: UserRole
+}
+
 /** The stored tag as `AccessTagResource` returns it. */
 export interface AccessTag {
   id: number
   barangay: { id: number; name: string }
-  recorded_by: {
-    id: number
-    first_name: string
-    last_name: string
-    role: UserRole
-  }
+  recorded_by: AccessTagActor
   type: string
   type_label: string
   landmark: string | null
@@ -41,5 +44,22 @@ export interface AccessTag {
   address: string | null
   observed_at: string
   is_active: boolean
+  retired_at: string | null
+  retired_reason: string | null
+  retired_by: AccessTagActor | null
   created_at: string
+}
+
+/**
+ * The list's filter surface (FR-120). An empty string means "not narrowed",
+ * and `is_active` travels as the query string the server validates.
+ */
+export interface AccessTagFilters {
+  barangay_id: string
+  type: string
+  is_active: '' | '1' | '0'
+  from: string
+  to: string
+  per_page: number
+  page: number
 }

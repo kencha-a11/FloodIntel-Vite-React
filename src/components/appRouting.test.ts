@@ -25,7 +25,8 @@ describe('app section routing', () => {
   })
 
   it('keys every section branch on the resolved view', () => {
-    expect(app.match(/activeView === '\w+'/g)).toHaveLength(6)
+    expect(app.match(/activeView === '\w+'/g)).toHaveLength(7)
+    expect(app).toContain("{activeView === 'tags' && (")
     expect(app).toContain("{activeView === 'roles' && <RoleMatrixView />}")
     expect(app).not.toMatch(/\bview ===/)
   })

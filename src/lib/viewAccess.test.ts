@@ -52,9 +52,10 @@ describe('viewAccess', () => {
 
     expect(access.iface).toBe('command_center')
     expect(access.defaultView).toBe('reports')
-    expect(views(access)).toEqual(['reports', 'map', 'tokens', 'roles'])
+    expect(views(access)).toEqual(['reports', 'map', 'tags', 'tokens', 'roles'])
     expect(access.sections[0].label).toBe('Review queue')
-    expect(access.sections[3].label).toBe('Roles & permissions')
+    expect(access.sections[2].label).toBe('Access tags')
+    expect(access.sections[4].label).toBe('Roles & permissions')
     expect(access.permissions.reviewReports).toBe(true)
     expect(access.permissions.fileImpactReport).toBe(false)
   })
@@ -62,7 +63,7 @@ describe('viewAccess', () => {
   it('gives the staff account the same sections, without the matrix, and no filing', () => {
     const access = viewAccess(account('command_center', STAFF, 'mdrrmo_staff'))
 
-    expect(views(access)).toEqual(['reports', 'map', 'tokens'])
+    expect(views(access)).toEqual(['reports', 'map', 'tags', 'tokens'])
     expect(access.permissions.fileImpactReport).toBe(false)
     expect(access.permissions.reviewReports).toBe(true)
     expect(access.permissions.manageUsers).toBe(false)
@@ -125,6 +126,23 @@ describe('viewAccess', () => {
     expect(views(access)).toEqual(['capture', 'impact', 'reports'])
     expect(access.permissions.manageUsers).toBe(true)
     expect(isViewReachable(access, 'roles')).toBe(false)
+  })
+
+  it('offers the tag list only in the command center, even with the read ability', () => {
+    const officer = viewAccess(
+      account('command_center', OFFICER, 'mdrrmo_officer'),
+    )
+    const captain = viewAccess(
+      account(
+        'field_reporter',
+        [...CAPTAIN, 'view-all-barangays'],
+        'barangay_captain',
+      ),
+    )
+
+    expect(isViewReachable(officer, 'tags')).toBe(true)
+    expect(captain.permissions.viewAllBarangays).toBe(true)
+    expect(isViewReachable(captain, 'tags')).toBe(false)
   })
 
   it('offers the report list alone when no ability is held', () => {

@@ -13,6 +13,7 @@ export type AppView =
   | 'impact'
   | 'reports'
   | 'map'
+  | 'tags'
   | 'tokens'
   | 'roles'
 
@@ -38,6 +39,7 @@ const FIELD_ORDER: readonly AppView[] = [
 const COMMAND_ORDER: readonly AppView[] = [
   'reports',
   'map',
+  'tags',
   'tokens',
   'capture',
   'impact',
@@ -56,6 +58,8 @@ function sectionLabel(view: AppView, canReview: boolean): string {
       return canReview ? 'Review queue' : 'Reports'
     case 'map':
       return 'Map'
+    case 'tags':
+      return 'Access tags'
     case 'tokens':
       return 'API tokens'
     case 'roles':
@@ -82,6 +86,13 @@ export function viewAccess(
 
   if (permissions.viewValidatedFeed) {
     reachable.add('map')
+  }
+
+  // The tag list is command-center chrome that answers the cross-barangay
+  // read (FR-119, FR-120, D-132): the barangay filter is the ability the
+  // server checks, and a field account reaches its own tags through capture.
+  if (permissions.viewAllBarangays) {
+    reachable.add('tags')
   }
 
   if (permissions.manageTokens) {
