@@ -62,6 +62,20 @@ describe('offline queue', () => {
     expect((await listQueue(2)).map((item) => item.id)).toEqual(['other'])
   })
 
+  it('keeps a correction link on the queued payload', async () => {
+    const item = makeItem({ id: 'correction' })
+    item.payload.supersedes_id = 12
+
+    await enqueue(item)
+
+    const stored = await getQueueItem('correction')
+
+    expect(stored?.kind).toBe('level')
+    expect(
+      stored?.kind === 'level' ? stored.payload.supersedes_id : null,
+    ).toBe(12)
+  })
+
   it('updates and removes items', async () => {
     const item = makeItem({ id: 'update-me' })
     await enqueue(item)

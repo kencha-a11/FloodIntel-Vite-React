@@ -43,6 +43,15 @@ export interface Barangay {
   is_active: boolean
 }
 
+/** The report a correction answers, as the detail and queue read it. */
+export interface SupersededReportLink {
+  id: number
+  status: FloodReportStatus
+  status_label: string
+  reported_at: string | null
+  returned_reason: string | null
+}
+
 export interface FloodReport {
   id: number
   user: FloodReportUser
@@ -70,6 +79,10 @@ export interface FloodReport {
   anomaly_flags: AnomalyFlag[]
   rejection_reason: string | null
   rejected_at: string | null
+  /** FR-14's link, not a fifth status: the prior report keeps its own status. */
+  supersedes_id: number | null
+  superseded_by_id?: number | null
+  supersedes?: SupersededReportLink | null
   created_at: string
 }
 
@@ -108,6 +121,7 @@ type FloodReportInputBase = {
   gps_accuracy: number | null
   notes: string | null
   reported_at: string | null
+  supersedes_id?: number | null
 }
 
 export type FloodReportInput =

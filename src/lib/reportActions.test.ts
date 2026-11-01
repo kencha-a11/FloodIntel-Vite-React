@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   availableReportActions,
+  canFileCorrection,
   overrideTargets,
 } from './reportActions'
 
@@ -85,6 +86,38 @@ describe('availableReportActions', () => {
         'mdrrmo_officer',
       ),
     ).toMatchObject({ canReject: true })
+  })
+})
+
+describe('canFileCorrection', () => {
+  it('offers a correction to a submitter on the returned head of a chain', () => {
+    expect(
+      canFileCorrection({ status: 'returned', superseded_by_id: null }, TANOD),
+    ).toBe(true)
+    expect(canFileCorrection({ status: 'returned' }, TANOD)).toBe(true)
+  })
+
+  it('offers nothing outside a return', () => {
+    for (const status of ['submitted', 'validated', 'rejected'] as const) {
+      expect(
+        canFileCorrection({ status, superseded_by_id: null }, TANOD),
+      ).toBe(false)
+    }
+  })
+
+  it('offers nothing once the chain already has a successor', () => {
+    expect(
+      canFileCorrection({ status: 'returned', superseded_by_id: 9 }, TANOD),
+    ).toBe(false)
+  })
+
+  it('offers nothing to an account that cannot file reports', () => {
+    expect(
+      canFileCorrection({ status: 'returned', superseded_by_id: null }, OFFICER),
+    ).toBe(false)
+    expect(
+      canFileCorrection({ status: 'returned', superseded_by_id: null }, []),
+    ).toBe(false)
   })
 })
 

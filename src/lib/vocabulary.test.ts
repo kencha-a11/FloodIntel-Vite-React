@@ -13,10 +13,12 @@ import {
   alertTierLabel,
   alertTierShortLabel,
   alertTierTone,
+  correctionLinkLabel,
   floodLevelLabel,
   legacyDepthLevel,
   reportStatusLabel,
   reportStatusTone,
+  supersededByLabel,
 } from './vocabulary'
 import type { AlertLevel, FloodLevel, FloodReportStatus } from '../types/report'
 
@@ -127,6 +129,24 @@ describe('legacy depth vocabulary', () => {
     statuses.forEach((status) => {
       expect(depthText).not.toContain(reportStatusLabel(status).toLowerCase())
     })
+  })
+})
+
+describe('correction link vocabulary', () => {
+  it('names both directions of the chain without inventing a status', () => {
+    expect(correctionLinkLabel(7)).toBe('Corrects report #7')
+    expect(supersededByLabel(12)).toBe('Superseded by report #12')
+  })
+
+  it('keeps the link wording out of the status labels', () => {
+    const statuses = Object.values(REPORT_STATUS_LABELS)
+
+    expect(statuses.some((label) => correctionLinkLabel(7).includes(label))).toBe(
+      false,
+    )
+    expect(statuses.some((label) => supersededByLabel(7).includes(label))).toBe(
+      false,
+    )
   })
 })
 

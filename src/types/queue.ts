@@ -20,6 +20,7 @@ export interface LevelReportPayload {
   gps_accuracy: number | null
   notes: string | null
   reported_at: string | null
+  supersedes_id?: number | null
 }
 
 export interface ImpactReportPayload {

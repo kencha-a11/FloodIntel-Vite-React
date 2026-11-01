@@ -40,11 +40,13 @@ function App() {
   const [mode, setMode] = useState<AuthMode>('login')
   const [view, setView] = useState<AppView | null>(null)
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
+  const [correctsReportId, setCorrectsReportId] = useState<number | null>(null)
   const userId = user?.id ?? null
 
   useEffect(() => {
     setView(null)
     setSelectedReportId(null)
+    setCorrectsReportId(null)
   }, [userId])
 
   if (isLoading) {
@@ -112,6 +114,11 @@ function App() {
   const canManageTokens = user.interface === 'command_center'
   const activeView = view ?? (canSubmit ? 'capture' : 'reports')
 
+  function navigate(next: AppView | null): void {
+    setCorrectsReportId(null)
+    setView(next)
+  }
+
   return (
     <AppShell
       user={user}
@@ -121,14 +128,18 @@ function App() {
       canReview={canReview}
       canViewMap={canViewMap}
       canManageTokens={canManageTokens}
-      onNavigate={setView}
+      onNavigate={navigate}
       onLogout={logout}
       actions={<QueueIndicator />}
     >
       <PwaUpdatePrompt />
 
       {activeView === 'capture' && canSubmit && (
-        <FloodReportForm onViewReports={() => setView('reports')} />
+        <FloodReportForm
+          correctsReportId={correctsReportId}
+          onCorrectionCleared={() => setCorrectsReportId(null)}
+          onViewReports={() => setView('reports')}
+        />
       )}
 
       {activeView === 'impact' && (
@@ -141,6 +152,10 @@ function App() {
           selectedReportId={selectedReportId}
           onSelect={setSelectedReportId}
           onClear={() => setSelectedReportId(null)}
+          onCorrect={(reportId) => {
+            setCorrectsReportId(reportId)
+            setView('capture')
+          }}
         />
       )}
 

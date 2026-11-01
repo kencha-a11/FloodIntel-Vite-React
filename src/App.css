@@ -873,6 +873,17 @@
   color: var(--status-warning-fg);
 }
 
+.correction-badge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--status-info-bg);
+  border: 1px solid var(--status-info-border);
+  color: var(--status-info-fg);
+}
+
 .anomaly-panel {
   margin: var(--space-4) 0;
   padding: var(--space-3);
@@ -925,6 +936,40 @@
   h3 {
     margin: 0 0 var(--space-2);
     color: var(--color-text);
+  }
+}
+
+.correction-chain,
+.correction-cta {
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+
+  h3 {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text);
+  }
+
+  > button {
+    align-self: flex-start;
+  }
+}
+
+.correction-chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+
+  > li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    align-items: flex-start;
   }
 }
 

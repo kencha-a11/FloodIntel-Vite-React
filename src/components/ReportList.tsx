@@ -10,6 +10,7 @@ import {
   REPORT_STATUSES,
   alertTierLabel,
   alertTierTone,
+  correctionLinkLabel,
   floodLevelLabel,
   legacyDepthLevel,
   reportStatusLabel,
@@ -441,6 +442,11 @@ export function ReportList({
                     <Badge tone={reportStatusTone(report.status)}>
                       {reportStatusLabel(report.status)}
                     </Badge>
+                    {report.supersedes_id !== null && (
+                      <span className="correction-badge">
+                        {correctionLinkLabel(report.supersedes_id)}
+                      </span>
+                    )}
                     {report.anomaly_flags.map((flag) => (
                       <span key={flag.value} className="anomaly-badge">
                         Flag: {flag.label}

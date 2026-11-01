@@ -14,11 +14,13 @@ export function ReviewWorkspace({
   selectedReportId,
   onSelect,
   onClear,
+  onCorrect,
 }: {
   canFilter: boolean
   selectedReportId: number | null
   onSelect: (reportId: number) => void
   onClear: () => void
+  onCorrect: (reportId: number) => void
 }) {
   const queueRef = useRef<HTMLElement | null>(null)
   const detailRef = useRef<HTMLElement | null>(null)
@@ -71,6 +73,8 @@ export function ReviewWorkspace({
             key={selectedReportId}
             reportId={selectedReportId}
             onBack={onClear}
+            onSelect={onSelect}
+            onCorrect={onCorrect}
           />
         )}
       </section>

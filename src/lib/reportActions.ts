@@ -3,6 +3,7 @@ import type { FloodReportStatus } from '../types/report'
 
 const VALIDATE_REPORT = 'validate-report'
 const OVERRIDE_VALIDATION = 'override-validation'
+const SUBMIT_FLOOD_REPORT = 'submit-flood-report'
 
 export interface ReportActions {
   canValidate: boolean
@@ -30,6 +31,24 @@ export function availableReportActions(
     canOverride: decided && abilities.includes(OVERRIDE_VALIDATION),
     canReject: submitted && role === 'mdrrmo_officer',
   }
+}
+
+/**
+ * FR-14: a correction is a new report that answers a return, so only the
+ * returned head of a chain offers the affordance — never an edit.
+ */
+export function canFileCorrection(
+  report: {
+    status: FloodReportStatus
+    superseded_by_id?: number | null
+  },
+  abilities: readonly string[],
+): boolean {
+  return (
+    report.status === 'returned' &&
+    (report.superseded_by_id ?? null) === null &&
+    abilities.includes(SUBMIT_FLOOD_REPORT)
+  )
 }
 
 export type OverrideTarget = 'validated' | 'returned' | 'rejected'

@@ -63,6 +63,10 @@ export function submitReport(
   form.append('latitude', String(report.latitude))
   form.append('longitude', String(report.longitude))
 
+  if (report.supersedes_id !== undefined && report.supersedes_id !== null) {
+    form.append('supersedes_id', String(report.supersedes_id))
+  }
+
   if (report.gps_accuracy !== null) {
     form.append('gps_accuracy', String(report.gps_accuracy))
   }

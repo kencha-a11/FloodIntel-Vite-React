@@ -92,6 +92,7 @@ function render(selectedReportId: number | null): string {
         selectedReportId={selectedReportId}
         onSelect={() => {}}
         onClear={() => {}}
+        onCorrect={() => {}}
       />
     </AuthContext.Provider>,
   )
@@ -164,6 +165,40 @@ describe('review queue rows', () => {
     expect(list).toContain('<time dateTime={value}>')
     expect(list).toContain('NOT_RECORDED')
     expect(list).not.toContain('toLocaleString()')
+  })
+})
+
+describe('correction chain', () => {
+  it('shows the chain in both directions with the prior return reason', () => {
+    const detail = read('./ReportDetail.tsx')
+
+    expect(detail).toContain('aria-label="Correction chain"')
+    expect(detail).toContain('correctionLinkLabel(priorReport.id)')
+    expect(detail).toContain('supersededByLabel(successorId)')
+    expect(detail).toContain('priorReport.returned_reason')
+  })
+
+  it('offers a new report on the returned head, never an edit', () => {
+    const detail = read('./ReportDetail.tsx')
+
+    expect(detail).toContain('canFileCorrection(report,')
+    expect(detail).toContain('File a corrected report')
+    expect(detail).not.toMatch(/Edit report|Update report/)
+  })
+
+  it('marks a correction in the queue row', () => {
+    const list = read('./ReportList.tsx')
+
+    expect(list).toContain('report.supersedes_id !== null')
+    expect(list).toContain('correctionLinkLabel(report.supersedes_id)')
+  })
+
+  it('answers the return from the capture screen and clears the link after it', () => {
+    const form = read('./FloodReportForm.tsx')
+
+    expect(form).toContain('supersedes_id: correctsReportId')
+    expect(form).toContain('Stop correcting')
+    expect(form).toContain('onCorrectionCleared?.()')
   })
 })
 

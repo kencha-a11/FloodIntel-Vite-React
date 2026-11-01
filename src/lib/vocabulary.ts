@@ -39,6 +39,18 @@ export function reportStatusTone(status: FloodReportStatus): ReportStatusTone {
   return REPORT_STATUS_TONES[status]
 }
 
+/*
+ * FR-14's correction is a link between two reports, not a fifth status, so
+ * these name the chain without implying the prior report changed state.
+ */
+export function correctionLinkLabel(reportId: number): string {
+  return `Corrects report #${reportId}`
+}
+
+export function supersededByLabel(reportId: number): string {
+  return `Superseded by report #${reportId}`
+}
+
 export interface AlertTier {
   tier: 1 | 2 | 3
   label: string

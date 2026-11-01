@@ -105,8 +105,12 @@ function formatAccuracy(accuracy: number | null): string {
 }
 
 export function FloodReportForm({
+  correctsReportId = null,
+  onCorrectionCleared,
   onViewReports,
 }: {
+  correctsReportId?: number | null
+  onCorrectionCleared?: () => void
   onViewReports: () => void
 }) {
   const { user } = useAuth()
@@ -399,6 +403,7 @@ export function FloodReportForm({
           gps_accuracy: gps.accuracy,
           notes: notes.trim() === '' ? null : notes.trim(),
           reported_at: observedAt,
+          supersedes_id: correctsReportId,
         },
         observedAt,
         photo,
@@ -417,6 +422,7 @@ export function FloodReportForm({
       })
       setStep('success')
       setDraftDirty(false)
+      onCorrectionCleared?.()
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Unable to save the report.',
@@ -517,6 +523,12 @@ export function FloodReportForm({
             <dt>Observed at</dt>
             <dd>{new Date(gps.capturedAt).toLocaleString()}</dd>
           </div>
+          {correctsReportId !== null && (
+            <div>
+              <dt>Correction of</dt>
+              <dd>Report #{correctsReportId}</dd>
+            </div>
+          )}
           <div>
             <dt>Barangay</dt>
             <dd>{user?.barangay?.name ?? 'Assigned automatically'}</dd>
@@ -552,7 +564,28 @@ export function FloodReportForm({
 
   return (
     <form className="ui-form report-form" onSubmit={handleReview} noValidate>
-      <h2>New flood report</h2>
+      <h2>
+        {correctsReportId === null ? 'New flood report' : 'Correct a flood report'}
+      </h2>
+
+      {correctsReportId !== null && (
+        <Alert tone="info">
+          Answering report #{correctsReportId}. A correction is a new report;
+          the returned report stays in the record unchanged.
+          {onCorrectionCleared !== undefined && (
+            <>
+              {' '}
+              <Button
+                variant="quiet"
+                size="compact"
+                onClick={onCorrectionCleared}
+              >
+                Stop correcting
+              </Button>
+            </>
+          )}
+        </Alert>
+      )}
 
       {error && <Alert tone="danger">{error}</Alert>}
 

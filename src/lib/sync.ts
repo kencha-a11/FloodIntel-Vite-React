@@ -88,6 +88,16 @@ export function isReplayMatch(
     return false
   }
 
+  // A correction is a new report: the returned report it answers is never a
+  // replay of it, even when the observation matches.
+  if (
+    item.payload.supersedes_id !== undefined &&
+    item.payload.supersedes_id !== null &&
+    report.id === item.payload.supersedes_id
+  ) {
+    return false
+  }
+
   if (report.user.id !== item.userId) {
     return false
   }

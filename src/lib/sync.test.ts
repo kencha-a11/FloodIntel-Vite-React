@@ -78,6 +78,7 @@ function makeReport(
     anomaly_flags: [],
     rejection_reason: null,
     rejected_at: null,
+    supersedes_id: null,
     created_at: item.observedAt,
     ...overrides,
   }
@@ -377,6 +378,15 @@ describe('isReplayMatch', () => {
     }
 
     expect(isReplayMatch(makeReport(makeItem()), impact)).toBe(false)
+  })
+
+  it('never matches a correction against the report it answers', () => {
+    const item = makeItem()
+    item.payload.supersedes_id = 12
+    const correction = { ...makeReport(item), id: 12 }
+
+    expect(isReplayMatch(correction, item)).toBe(false)
+    expect(isReplayMatch({ ...correction, id: 13 }, item)).toBe(true)
   })
 
   it('rejects reports from another user, level, place, or time', () => {

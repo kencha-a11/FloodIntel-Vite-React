@@ -11,6 +11,7 @@ import {
 import type { ReviewDecision } from '../lib/reviewDecision'
 import {
   availableReportActions,
+  canFileCorrection,
   overrideTargets,
 } from '../lib/reportActions'
 import type { OverrideTarget } from '../lib/reportActions'
@@ -19,10 +20,12 @@ import {
   LEGACY_DEPTH_NOTE,
   alertTierLabel,
   alertTierTone,
+  correctionLinkLabel,
   floodLevelLabel,
   legacyDepthLevel,
   reportStatusLabel,
   reportStatusTone,
+  supersededByLabel,
 } from '../lib/vocabulary'
 import {
   Alert,
@@ -52,9 +55,13 @@ function combineErrors(
 export function ReportDetail({
   reportId,
   onBack,
+  onSelect,
+  onCorrect,
 }: {
   reportId: number
   onBack: () => void
+  onSelect: (reportId: number) => void
+  onCorrect: (reportId: number) => void
 }) {
   const { user, logout } = useAuth()
   const [report, setReport] = useState<FloodReport | null>(null)
@@ -287,6 +294,10 @@ export function ReportDetail({
       : availableReportActions(report, user?.abilities ?? [], user?.role)
 
   const targets = report === null ? [] : overrideTargets(report.status)
+  const priorReport = report?.supersedes ?? null
+  const successorId = report?.superseded_by_id ?? null
+  const canCorrect =
+    report !== null && canFileCorrection(report, user?.abilities ?? [])
 
   return (
     <div className="report-detail">
@@ -423,6 +434,59 @@ export function ReportDetail({
               </div>
             )}
           </dl>
+
+          {(priorReport !== null || successorId !== null) && (
+            <section className="correction-chain" aria-label="Correction chain">
+              <h3>Correction chain</h3>
+              <ul className="correction-chain-list">
+                {priorReport !== null && (
+                  <li>
+                    <Button
+                      variant="quiet"
+                      size="compact"
+                      onClick={() => onSelect(priorReport.id)}
+                    >
+                      {correctionLinkLabel(priorReport.id)}
+                    </Button>
+                    <p className="report-row-meta">
+                      {reportStatusLabel(priorReport.status)} ·{' '}
+                      {priorReport.returned_reason === null
+                        ? 'No return reason recorded.'
+                        : `Returned: ${priorReport.returned_reason}`}
+                    </p>
+                  </li>
+                )}
+                {successorId !== null && (
+                  <li>
+                    <Button
+                      variant="quiet"
+                      size="compact"
+                      onClick={() => onSelect(successorId)}
+                    >
+                      {supersededByLabel(successorId)}
+                    </Button>
+                    <p className="report-row-meta">
+                      Corrected by a new report; this record is kept unchanged.
+                    </p>
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
+
+          {canCorrect && (
+            <section className="correction-cta" aria-label="Correction">
+              <h3>Correct this report</h3>
+              <p className="muted">
+                A correction is a new report that answers this return. The
+                returned report stays in the record and is never edited
+                (FR-14).
+              </p>
+              <Button onClick={() => onCorrect(reportId)}>
+                File a corrected report
+              </Button>
+            </section>
+          )}
 
           {report.status_changes !== undefined &&
             report.status_changes.length > 0 && (
