@@ -4,6 +4,7 @@ import type {
   LevelReportPayload,
   QueueItem,
   QueueOutcome,
+  SubmitReportResult,
 } from '../types/queue'
 
 export interface SubmitLevelReportInput {
@@ -11,19 +12,13 @@ export interface SubmitLevelReportInput {
   observedAt: string
   photo: Blob
   photoName: string
+  replaceQueueId?: string
 }
 
 export interface SubmitImpactReportInput {
   payload: ImpactReportPayload
   observedAt: string
-}
-
-export interface SubmitLevelReportResult {
-  id: string
-  queued: boolean
-  failed: boolean
-  reportId: number | null
-  message: string
+  replaceQueueId?: string
 }
 
 export interface QueueContextValue {
@@ -37,12 +32,13 @@ export interface QueueContextValue {
   outcomes: QueueOutcome[]
   submitLevelReport: (
     input: SubmitLevelReportInput,
-  ) => Promise<SubmitLevelReportResult>
+  ) => Promise<SubmitReportResult>
   submitImpactReport: (
     input: SubmitImpactReportInput,
-  ) => Promise<SubmitLevelReportResult>
+  ) => Promise<SubmitReportResult>
   retry: (id: string) => Promise<void>
   retryAll: () => Promise<void>
+  discard: (id: string) => Promise<void>
   clearDeviceData: () => Promise<void>
   dismissOutcomes: () => void
   refresh: () => Promise<void>

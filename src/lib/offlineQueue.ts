@@ -106,21 +106,32 @@ function isQuotaError(err: unknown): boolean {
   )
 }
 
-export async function enqueue(item: QueueItem): Promise<void> {
+export async function enqueue(
+  item: QueueItem,
+  replaceId?: string,
+): Promise<void> {
   const db = await getDb()
 
   try {
     const tx = db.transaction('queue', 'readwrite')
     const items = await tx.store.getAll()
-    const bytes = items.reduce((total, entry) => total + entry.photoBytes, 0)
+    // Replacing a record cannot grow the queue, so the caps exclude the
+    // record being replaced.
+    const retained = items.filter((entry) => entry.id !== replaceId)
+    const bytes = retained.reduce((total, entry) => total + entry.photoBytes, 0)
 
-    if (exceedsQueueLimit(items.length, bytes, item.photoBytes)) {
+    if (exceedsQueueLimit(retained.length, bytes, item.photoBytes)) {
       throw new QueueFullError(
         'The offline queue is full. Connect to the internet to send the saved reports before adding more.',
       )
     }
 
     await tx.store.put(item)
+
+    if (replaceId !== undefined && replaceId !== item.id) {
+      await tx.store.delete(replaceId)
+    }
+
     await tx.done
   } catch (err) {
     if (err instanceof QueueFullError) {
@@ -181,10 +192,12 @@ export async function removeQueueItem(id: string): Promise<void> {
   notify()
 }
 
-export async function countPending(userId?: number): Promise<number> {
-  const items = await listQueue(userId)
-
+export function countPendingItems(items: readonly QueueItem[]): number {
   return items.filter((item) => item.status !== 'failed').length
+}
+
+export async function countPending(userId?: number): Promise<number> {
+  return countPendingItems(await listQueue(userId))
 }
 
 export async function clearQueueForUser(userId: number): Promise<void> {

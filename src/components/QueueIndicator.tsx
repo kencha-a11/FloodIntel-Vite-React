@@ -73,13 +73,16 @@ export function QueueIndicator() {
     outcomes,
     retry,
     retryAll,
+    discard,
     clearDeviceData,
     dismissOutcomes,
   } = useQueue()
   const { logout } = useAuth()
   const [open, setOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null)
   const notice = outcomes[outcomes.length - 1] ?? null
+  const failedCount = items.filter((item) => item.status === 'failed').length
 
   useEffect(() => {
     if (notice === null) {
@@ -131,6 +134,11 @@ export function QueueIndicator() {
         onClick={() => setOpen((current) => !current)}
       >
         {pendingCount > 0 ? `Queue (${pendingCount})` : 'Queue'}
+        {failedCount > 0 && (
+          <span className="queue-failed">
+            {failedCount} failed
+          </span>
+        )}
         {!online && <span className="queue-offline">offline</span>}
       </Button>
 
@@ -173,10 +181,44 @@ export function QueueIndicator() {
                         Retry
                       </Button>
                     )}
+                    {item.status !== 'syncing' && confirmDiscard !== item.id && (
+                      <Button
+                        variant="quiet"
+                        onClick={() => setConfirmDiscard(item.id)}
+                      >
+                        Discard
+                      </Button>
+                    )}
                   </div>
 
                   {item.lastError !== null && (
                     <small className="field-error">{item.lastError}</small>
+                  )}
+
+                  {confirmDiscard === item.id && (
+                    <div className="queue-discard" role="group" aria-label="Confirm discard">
+                      <p>
+                        Discard {levelLabel(item)}? Its photo and saved details
+                        are deleted from this device. This cannot be undone.
+                      </p>
+                      <Button
+                        variant="danger"
+                        size="compact"
+                        onClick={() => {
+                          setConfirmDiscard(null)
+                          void discard(item.id)
+                        }}
+                      >
+                        Discard report
+                      </Button>
+                      <Button
+                        variant="quiet"
+                        size="compact"
+                        onClick={() => setConfirmDiscard(null)}
+                      >
+                        Keep report
+                      </Button>
+                    </div>
                   )}
                 </li>
               ))}

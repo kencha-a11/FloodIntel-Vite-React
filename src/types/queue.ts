@@ -82,3 +82,11 @@ export interface QueueOutcome {
   reportId: number | null
   at: number
 }
+
+export interface SubmitReportResult {
+  id: string
+  queued: boolean
+  failed: boolean
+  reportId: number | null
+  message: string
+}

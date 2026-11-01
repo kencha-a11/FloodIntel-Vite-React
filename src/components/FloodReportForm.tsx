@@ -142,6 +142,7 @@ export function FloodReportForm({
     reportId: number | null
     message: string
   } | null>(null)
+  const [failedQueueId, setFailedQueueId] = useState<string | null>(null)
   const photoUrlRef = useRef<string | null>(null)
   const addressAttempt = useRef(0)
 
@@ -408,13 +409,16 @@ export function FloodReportForm({
         observedAt,
         photo,
         photoName,
+        replaceQueueId: failedQueueId ?? undefined,
       })
 
       if (result.failed) {
+        setFailedQueueId(result.id)
         setError(result.message)
         return
       }
 
+      setFailedQueueId(null)
       setSubmitResult({
         queued: result.queued,
         reportId: result.reportId,
@@ -449,6 +453,7 @@ export function FloodReportForm({
     setErrors({})
     setServerFieldErrors({})
     setSubmitResult(null)
+    setFailedQueueId(null)
     setAddress(null)
     setAddressStatus('idle')
     addressAttempt.current += 1

@@ -74,6 +74,7 @@ export function FloodImpactReportForm({
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [summary, setSummary] = useState<SubmitSummary | null>(null)
+  const [failedQueueId, setFailedQueueId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -192,13 +193,16 @@ export function FloodImpactReportForm({
           supersedes_id: supersedesId,
         },
         observedAt: filedAt,
+        replaceQueueId: failedQueueId ?? undefined,
       })
 
       if (result.failed) {
+        setFailedQueueId(result.id)
         setError(result.message)
         return
       }
 
+      setFailedQueueId(null)
       setSummary({
         queued: result.queued,
         reportId: result.reportId,
@@ -225,6 +229,7 @@ export function FloodImpactReportForm({
     setErrors({})
     setError(null)
     setSummary(null)
+    setFailedQueueId(null)
   }
 
   if (step === 'success' && summary !== null) {
