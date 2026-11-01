@@ -189,8 +189,8 @@ describe('review decision dialogs', () => {
   it('keeps observed and received apart in the report itself', () => {
     const detail = read('./ReportDetail.tsx')
 
-    expect(detail).toContain('<dt>Observed at</dt>')
-    expect(detail).toContain('<dt>Received at</dt>')
+    expect(detail).toContain('<dt>Observed at (device)</dt>')
+    expect(detail).toContain('<dt>Received at (system)</dt>')
     expect(detail).toContain('<time dateTime={report.reported_at}>')
     expect(detail).toContain('<time dateTime={report.created_at}>')
     expect(detail).toContain('<time dateTime={change.created_at}>')

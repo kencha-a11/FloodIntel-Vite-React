@@ -393,7 +393,7 @@ export function ReportDetail({
               </dd>
             </div>
             <div>
-              <dt>Observed at</dt>
+              <dt>Observed at (device)</dt>
               <dd>
                 {report.reported_at === null ? (
                   NOT_RECORDED
@@ -405,7 +405,7 @@ export function ReportDetail({
               </dd>
             </div>
             <div>
-              <dt>Received at</dt>
+              <dt>Received at (system)</dt>
               <dd>
                 <time dateTime={report.created_at}>
                   {formatInstantWithAge(report.created_at)}
