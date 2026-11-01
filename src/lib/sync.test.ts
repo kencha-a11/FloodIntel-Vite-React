@@ -7,12 +7,12 @@ import {
 import type { SyncDeps } from './sync'
 import { AuthApiError } from './http'
 import { AUTH_WINDOW_MS } from './session'
-import type { QueueItem } from '../types/queue'
+import type { LevelQueueItem, QueueItem } from '../types/queue'
 import type { FloodReport } from '../types/report'
 
 const NOW = 1_700_000_000_000
 
-function makeItem(overrides: Partial<QueueItem> = {}): QueueItem {
+function makeItem(overrides: Partial<LevelQueueItem> = {}): LevelQueueItem {
   return {
     id: 'item-1',
     userId: 1,
@@ -43,6 +43,10 @@ function makeReport(
   item: QueueItem,
   overrides: Partial<FloodReport> = {},
 ): FloodReport {
+  if (item.kind !== 'level') {
+    throw new Error('makeReport only builds level reports.')
+  }
+
   return {
     id: 99,
     user: {
@@ -70,6 +74,8 @@ function makeReport(
     notes: item.payload.notes,
     reported_at: item.payload.reported_at ?? item.observedAt,
     status: 'submitted',
+    status_label: 'Submitted',
+    anomaly_flags: [],
     rejection_reason: null,
     rejected_at: null,
     created_at: item.observedAt,
@@ -106,7 +112,7 @@ function createHarness(
         return null
       }
 
-      const updated = { ...existing, ...patch }
+      const updated = { ...existing, ...patch } as QueueItem
       store.set(id, updated)
 
       return updated
@@ -215,6 +221,10 @@ describe('runSync', () => {
     const harness = createHarness([makeItem()], {
       send: async (_token, item) => {
         calls += 1
+
+        if (item.kind !== 'level') {
+          throw new Error('expected a level item')
+        }
 
         if (item.payload.reported_at !== null) {
           throw new AuthApiError(
@@ -351,6 +361,22 @@ describe('isReplayMatch', () => {
     const item = makeItem()
 
     expect(isReplayMatch(makeReport(item), item)).toBe(true)
+  })
+
+  it('never matches an impact item against a level report', () => {
+    const impact = {
+      ...makeItem(),
+      kind: 'impact' as const,
+      payload: {
+        event_id: 3,
+        families: 10,
+        individuals: 42,
+        remarks: null,
+        reported_at: '2026-10-21T02:00:00.000Z',
+      },
+    }
+
+    expect(isReplayMatch(makeReport(makeItem()), impact)).toBe(false)
   })
 
   it('rejects reports from another user, level, place, or time', () => {

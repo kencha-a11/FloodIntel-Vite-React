@@ -1,0 +1,152 @@
+/*
+ * FloodIntel design tokens (UI-01, D-59).
+ *
+ * Components consume roles, never raw hex. Every text/background pair used in
+ * the shipped light theme is checked in tokens.test.ts; changing a value means
+ * changing that table too. The dark set is reserved and ships no values until
+ * Q-09 decides the theme policy (see the comment at the bottom).
+ */
+:root {
+  color-scheme: light;
+
+  /* surfaces and text */
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  /* overlays and popovers */
+  --color-surface-raised: #ffffff;
+  --color-surface-soft: #f8fafc;
+  --color-surface-muted: #f4f3ec;
+  --color-text: #08060d;
+  --color-text-muted: #6b6375;
+  --color-border: #e5e4e7;
+  /* reserved: hover and selected borders (UI-02) */
+  --color-border-strong: #c9c5d0;
+  --color-accent: #9328e6;
+  --color-accent-contrast: #ffffff;
+  --color-accent-subtle-bg: rgba(147, 40, 230, 0.1);
+  --color-accent-subtle-border: rgba(147, 40, 230, 0.5);
+  --color-focus: #9328e6;
+
+  /* status roles: neutral, info, success, warning, danger */
+  --status-neutral-bg: #f4f3ec;
+  --status-neutral-fg: #6b6375;
+  --status-neutral-border: #e5e4e7;
+  --status-info-bg: rgba(147, 40, 230, 0.1);
+  --status-info-fg: #9328e6;
+  --status-info-border: rgba(147, 40, 230, 0.5);
+  --status-success-bg: #dcfce7;
+  --status-success-fg: #166534;
+  --status-success-border: #86efac;
+  --status-warning-bg: #fef3c7;
+  --status-warning-fg: #92400e;
+  --status-warning-border: #fcd34d;
+  --status-warning-solid-bg: #f59e0b;
+  --status-warning-solid-fg: #111827;
+  --status-danger-bg: #fee2e2;
+  --status-danger-fg: #991b1b;
+  --status-danger-border: #fca5a5;
+  --status-danger-solid-bg: #b91c1c;
+  --status-danger-solid-fg: #ffffff;
+
+  /*
+   * The five-step report severity scale. Legacy: it is not an alert tier
+   * (the alert tiers below are Level 1–3). UI-05 labels it as legacy.
+   */
+  --severity-1-bg: #dcfce7;
+  --severity-1-fg: #166534;
+  --severity-1-border: #86efac;
+  --severity-2-bg: #ecfccb;
+  --severity-2-fg: #3f6212;
+  --severity-2-border: #bef264;
+  --severity-3-bg: #fef9c3;
+  --severity-3-fg: #854d0e;
+  --severity-3-border: #fde047;
+  --severity-4-bg: #ffedd5;
+  --severity-4-fg: #9a3412;
+  --severity-4-border: #fdba74;
+  --severity-5-bg: #fee2e2;
+  --severity-5-fg: #991b1b;
+  --severity-5-border: #fca5a5;
+
+  /* alert tiers: Level 1 — Alert, Level 2 — Get Ready, Level 3 — Red Alert */
+  --alert-1-bg: #f59e0b;
+  --alert-1-fg: #1f2937;
+  --alert-1-border: #b45309;
+  --alert-2-bg: #ea580c;
+  --alert-2-fg: #111827;
+  --alert-2-border: #9a3412;
+  --alert-3-bg: #b91c1c;
+  --alert-3-fg: #ffffff;
+  --alert-3-border: #7f1d1d;
+
+  /* data sources: observed and derived; predicted is reserved (no source yet) */
+  --source-observed-fg: #9a3412;
+  --source-observed-bg: #ea580c;
+  --source-observed-border: #9a3412;
+  --source-derived-fg: #155e75;
+  --source-derived-bg: #0e7490;
+  --source-derived-border: #155e75;
+  --source-derived-fill-opacity: 0.35;
+
+  /*
+   * Derived · terrain elevation (FR-54). A graded ramp, one step per elevation
+   * break, in a hue family no alert tier, derived surface, or basemap surface
+   * uses — the ramp is documented by its numeric breaks in the legend, so the
+   * hue alone never carries the meaning (NFR-22).
+   */
+  --terrain-1: #ddd6fe;
+  --terrain-2: #c4b5fd;
+  --terrain-3: #a78bfa;
+  --terrain-4: #8b5cf6;
+  --terrain-5: #7c3aed;
+  --terrain-line: #5b21b6;
+  --terrain-fill-opacity: 0.45;
+
+  /* typography */
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  /* page headings at command-center width (app shell) */
+  --text-2xl: 32px;
+  --leading-tight: 1.18;
+  --leading-normal: 1.45;
+
+  /* spacing: 4px base scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* radius, elevation, focus, motion */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-1: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* reserved: dialogs and sheets (UI-02) */
+  --shadow-2: rgba(0, 0, 0, 0.16) 0 16px 32px -8px, rgba(0, 0, 0, 0.08) 0 8px 12px -4px;
+  --focus-ring: 2px solid var(--color-focus);
+  --focus-ring-offset: 2px;
+  /* reserved: micro feedback; state changes use --duration-base */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+}
+
+/*
+ * Dark set — reserved, not shipped (D-59, Q-09). When Q-09 decides the theme
+ * policy, add a `@media (prefers-color-scheme: dark)` block here that redefines
+ * the same role names: --color-bg, --color-surface, --color-surface-raised,
+ * --color-surface-soft, --color-surface-muted, --color-text, --color-text-muted,
+ * --color-border, --color-border-strong, --color-accent, --color-accent-contrast,
+ * --color-accent-subtle-bg, --color-accent-subtle-border, --color-focus,
+ * every --status-<role>-*, --severity-*-*, --alert-*-*, and --source-*-*.
+ * Each pair then needs a contrast check in tokens.test.ts before the theme is
+ * claimed. Nothing above may be described as dark-mode support until then.
+ */

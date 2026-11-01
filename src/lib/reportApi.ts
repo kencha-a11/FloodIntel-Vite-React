@@ -2,9 +2,12 @@ import type {
   Barangay,
   FloodReport,
   FloodReportInput,
+  FloodReportStatus,
   Paginated,
   ReportFilters,
+  ValidatedFeedPage,
 } from '../types/report'
+import type { ImpactReportInput, FloodImpactReport } from '../types/impact'
 import { API_BASE_URL, request, requestForm } from './http'
 
 export function listReports(
@@ -15,6 +18,24 @@ export function listReports(
 
   return request<Paginated<FloodReport>>(
     `${API_BASE_URL}/flood-reports${suffix === '' ? '' : `?${suffix}`}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+}
+
+export function listValidatedFeed(
+  token: string,
+  options: { limit?: number } = {},
+): Promise<ValidatedFeedPage> {
+  const query = new URLSearchParams()
+
+  if (options.limit !== undefined) {
+    query.set('limit', String(options.limit))
+  }
+
+  const suffix = query.toString()
+
+  return request<ValidatedFeedPage>(
+    `${API_BASE_URL}/flood-reports/validated-feed${suffix === '' ? '' : `?${suffix}`}`,
     { headers: { Authorization: `Bearer ${token}` } },
   )
 }
@@ -82,6 +103,32 @@ export function submitReport(
   ).then((response) => response.data)
 }
 
+export function submitImpactReport(
+  token: string,
+  report: ImpactReportInput,
+): Promise<FloodImpactReport> {
+  const body: Record<string, unknown> = {
+    event_id: report.event_id,
+    families: report.families,
+    individuals: report.individuals,
+    remarks: report.remarks,
+  }
+  if (report.breakdown) body.breakdown = report.breakdown
+  if (report.related_level_report_ids) body.related_level_report_ids = report.related_level_report_ids
+  if (report.reported_at) body.reported_at = report.reported_at
+
+  return request<{ data: FloodImpactReport }>(
+    `${API_BASE_URL}/flood-impact-reports`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    },
+  ).then((response) => response.data)
+}
 export function rejectReport(
   token: string,
   reportId: number,
@@ -100,8 +147,55 @@ export function rejectReport(
   ).then((response) => response.data)
 }
 
-export function listBarangays(token: string): Promise<Barangay[]> {
-  return request<{ data: Barangay[] }>(`${API_BASE_URL}/barangays`, {
+export function validateReport(
+  token: string,
+  reportId: number,
+): Promise<FloodReport> {
+  return decisionRequest(token, reportId, 'validate')
+}
+
+export function returnReport(
+  token: string,
+  reportId: number,
+  returnReason: string,
+): Promise<FloodReport> {
+  return decisionRequest(token, reportId, 'return', {
+    return_reason: returnReason,
+  })
+}
+
+export function overrideReport(
+  token: string,
+  reportId: number,
+  toStatus: FloodReportStatus,
+  reason: string,
+): Promise<FloodReport> {
+  return decisionRequest(token, reportId, 'override', {
+    to_status: toStatus,
+    reason,
+  })
+}
+
+function decisionRequest(
+  token: string,
+  reportId: number,
+  action: 'validate' | 'return' | 'override',
+  body?: Record<string, string>,
+): Promise<FloodReport> {
+  return request<{ data: FloodReport }>(
+    `${API_BASE_URL}/flood-reports/${reportId}/${action}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+  ).then((response) => response.data)
+}
+
+export function listBarangays(token: string): Promise<Barangay[]> {  return request<{ data: Barangay[] }>(`${API_BASE_URL}/barangays`, {
     headers: { Authorization: `Bearer ${token}` },
   }).then((response) => response.data)
 }

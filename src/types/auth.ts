@@ -18,11 +18,11 @@ export interface User {
   id: number
   first_name: string
   last_name: string
+  full_name: string
   contact_number: string
   email: string
   email_verified_at: string | null
   created_at: string
-  updated_at: string
   role: UserRole
   role_label: string
   interface: AccessInterface

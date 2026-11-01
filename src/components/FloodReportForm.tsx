@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
 import { CameraCapture } from './CameraCapture'
+import { Alert, Button, Field, Select, Textarea, TextInput } from './ui'
 import { useQueue } from '../context/useQueue'
 import { ALERT_LEVELS } from '../lib/alertLevels'
 import { FLOOD_TYPES } from '../lib/alertLevels'
@@ -458,20 +459,20 @@ export function FloodReportForm({
       <div className="report-form">
         <h2>{submitResult.queued ? 'Report saved' : 'Report submitted'}</h2>
 
-        <p className="form-success">
+        <Alert tone="success">
           {submitResult.message}
           {submitResult.reportId !== null && !submitResult.queued
             ? ` Report #${submitResult.reportId} (${selectedAlertLevel?.label ?? alertLevel}) is now with the command center.`
             : ''}
-        </p>
+        </Alert>
 
         <div className="report-form-actions">
-          <button type="button" className="counter" onClick={resetForm}>
+          <Button variant="secondary" onClick={resetForm}>
             Report another
-          </button>
-          <button type="button" className="counter" onClick={onViewReports}>
+          </Button>
+          <Button variant="secondary" onClick={onViewReports}>
             View reports
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -486,11 +487,7 @@ export function FloodReportForm({
           center.
         </p>
 
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Alert tone="danger">{error}</Alert>}
 
         <dl className="report-summary">
           <div>
@@ -535,40 +532,36 @@ export function FloodReportForm({
         )}
 
         <div className="report-form-actions">
-          <button
-            type="button"
-            className="counter"
+          <Button
+            variant="secondary"
             disabled={isSubmitting}
             onClick={() => setStep('form')}
           >
             Back
-          </button>
-          <button
-            type="button"
-            className="counter"
+          </Button>
+          <Button
             disabled={isSubmitting}
             onClick={() => void handleSubmit()}
           >
             {isSubmitting ? 'Submitting…' : 'Submit report'}
-          </button>
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <form className="auth-form report-form" onSubmit={handleReview} noValidate>
+    <form className="ui-form report-form" onSubmit={handleReview} noValidate>
       <h2>New flood report</h2>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label className="field">
-        <span>Alert level</span>
-        <select
+      <Field
+        id="report-alert-level"
+        label="Alert level"
+        error={errors.alert_level}
+      >
+        <Select
           value={alertLevel}
           onChange={(event) => setAlertLevel(event.target.value as AlertLevel | '')}
         >
@@ -578,13 +571,11 @@ export function FloodReportForm({
               {option.label}
             </option>
           ))}
-        </select>
-        {errors.alert_level && <small className="field-error">{errors.alert_level}</small>}
-      </label>
+        </Select>
+      </Field>
 
-      <label className="field">
-        <span>Flood type</span>
-        <select
+      <Field id="report-flood-type" label="Flood type" error={errors.flood_type}>
+        <Select
           value={floodType}
           onChange={(event) => setFloodType(event.target.value as FloodType | '')}
         >
@@ -594,13 +585,11 @@ export function FloodReportForm({
               {option.label}
             </option>
           ))}
-        </select>
-        {errors.flood_type && <small className="field-error">{errors.flood_type}</small>}
-      </label>
+        </Select>
+      </Field>
 
-      <label className="field">
-        <span>Depth (cm, optional)</span>
-        <input
+      <Field id="report-depth" label="Depth (cm, optional)">
+        <TextInput
           type="number"
           min={0}
           value={depthCm === null ? '' : depthCm}
@@ -609,16 +598,15 @@ export function FloodReportForm({
             setDepthCm(v === '' ? null : Number(v))
           }}
         />
-      </label>
+      </Field>
 
-      <label className="field">
-        <span>Landmark (optional)</span>
-        <input
+      <Field id="report-landmark" label="Landmark (optional)">
+        <TextInput
           type="text"
           value={landmark}
           onChange={(event) => setLandmark(event.target.value)}
         />
-      </label>
+      </Field>
 
       <div className="gps-readout">
         <span className="field-label">Location</span>
@@ -634,9 +622,8 @@ export function FloodReportForm({
               {addressStatus === 'unavailable' && (
                 <>
                   {' '}
-                  <button
-                    type="button"
-                    className="link"
+                  <Button
+                    variant="quiet"
                     onClick={() => {
                       if (gps !== null) {
                         resolveAddress(gps)
@@ -644,58 +631,63 @@ export function FloodReportForm({
                     }}
                   >
                     Retry
-                  </button>
+                  </Button>
                 </>
               )}
             </p>
           </>
         ) : (
-          <p className="form-error" role="alert">
-            {gpsError ?? 'GPS coordinates are required.'}
-          </p>
+          <Alert tone="danger">{gpsError ?? 'GPS coordinates are required.'}</Alert>
         )}
         {gpsFieldError && !gpsError && (
           <small className="field-error">{gpsFieldError}</small>
         )}
-        <button
-          type="button"
-          className="link"
+        <Button
+          variant="quiet"
           disabled={isLocating}
           onClick={refreshLocation}
         >
           {isLocating ? 'Locating…' : 'Refresh location'}
-        </button>
+        </Button>
       </div>
 
       <CameraCapture
         onCapture={(blob) => void handleCapturedPhoto(blob)}
         onError={(message) => setPhotoError(message)}
       />
-      {photoError !== null && (
+      {isCompressing && compressionStage !== null && (
+        <small className="muted">{compressionStage}</small>
+      )}
+      {!isCompressing && compressionLabel !== null && (
+        <small className="muted">Photo optimised: {compressionLabel}</small>
+      )}
+      {photoError !== null ? (
         <small className="field-error">{photoError}</small>
+      ) : (
+        photoFieldError !== undefined && (
+          <small className="field-error">{photoFieldError}</small>
+        )
       )}
 
       {photoPreview !== null && (
         <img className="photo-preview" src={photoPreview} alt="Selected flood photo" />
       )}
 
-      <label className="field">
-        <span>Notes (optional)</span>
-        <textarea
+      <Field id="report-notes" label="Notes (optional)" error={notesError}>
+        <Textarea
           value={notes}
           maxLength={1000}
           rows={3}
           onChange={(event) => setNotes(event.target.value)}
         />
-        {notesError && <small className="field-error">{notesError}</small>}
-      </label>
+      </Field>
 
       <p className="muted">
         Barangay: {user?.barangay?.name ?? 'assigned automatically'} · Reported
         against your account.
       </p>
 
-      <button type="submit">Review report</button>
+      <Button type="submit">Review report</Button>
     </form>
   )
 }

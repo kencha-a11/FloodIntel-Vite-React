@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  Alert,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  Field,
+  Spinner,
+  TextInput,
+} from './ui'
 import { useAuth } from '../context/useAuth'
 import * as authApi from '../lib/authApi'
 import { isBlank } from '../lib/validation'
@@ -39,6 +49,7 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
   const [copied, setCopied] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isRevokingAll, setIsRevokingAll] = useState(false)
+  const [isConfirmingRevokeAll, setIsConfirmingRevokeAll] = useState(false)
 
   useEffect(() => {
     async function loadTokens() {
@@ -186,14 +197,7 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
       return
     }
 
-    if (
-      !window.confirm(
-        'Revoke all API tokens? This revokes your current session and will sign you out.',
-      )
-    ) {
-      return
-    }
-
+    setIsConfirmingRevokeAll(false)
     setIsRevokingAll(true)
     setError(null)
 
@@ -238,52 +242,52 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
     <div className="token-manager">
       <h2>API tokens</h2>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="danger">{error}</Alert>}
 
       {createdToken !== null && (
-        <div className="form-success token-created" role="status">
-          <p className="muted">
-            Copy this token now. It will not be shown again:
-          </p>
+        <Alert tone="success" role="status" className="token-created">
+          <span>Copy this token now. It will not be shown again:</span>
           <code className="token-value">{createdToken}</code>
-          <button type="button" className="counter" onClick={handleCopy}>
-            {copied ? 'Copied!' : 'Copy token'}
-          </button>
-        </div>
+          <span>
+            <Button variant="secondary" onClick={handleCopy}>
+              {copied ? 'Copied!' : 'Copy token'}
+            </Button>
+          </span>
+        </Alert>
       )}
 
       {isLoading ? (
-        <p className="muted">Loading tokens…</p>
+        <Spinner label="Loading tokens…" />
       ) : tokens.length === 0 ? (
-        <p className="muted">No API tokens yet.</p>
+        <EmptyState
+          title="No API tokens yet."
+          description="Create a token below to allow a device or script to call the API."
+        />
       ) : (
         <ul className="token-list">
           {tokens.map((token) => (
-            <li className="token-item" key={token.id}>
-              <div className="token-header">
-                <p className="token-name">{token.name}</p>
-                <button
-                  type="button"
-                  className="token-delete"
-                  disabled={deletingId !== null}
-                  onClick={() => void handleDelete(token.id, token.name)}
-                >
-                  {deletingId === token.id ? 'Revoking…' : 'Revoke'}
-                </button>
-              </div>
-              <p className="token-meta">
-                {token.abilities.length > 0
-                  ? token.abilities.join(', ')
-                  : 'All abilities'}
-              </p>
-              <p className="token-meta">
-                Created {formatDate(token.created_at)} · Last used{' '}
-                {formatDate(token.last_used_at)}
-              </p>
+            <li key={token.id}>
+              <Card className="token-item">
+                <div className="token-header">
+                  <p className="token-name">{token.name}</p>
+                  <Button
+                    variant="danger"
+                    disabled={deletingId !== null}
+                    onClick={() => void handleDelete(token.id, token.name)}
+                  >
+                    {deletingId === token.id ? 'Revoking…' : 'Revoke'}
+                  </Button>
+                </div>
+                <p className="token-meta">
+                  {token.abilities.length > 0
+                    ? token.abilities.join(', ')
+                    : 'All abilities'}
+                </p>
+                <p className="token-meta">
+                  Created {formatDate(token.created_at)} · Last used{' '}
+                  {formatDate(token.last_used_at)}
+                </p>
+              </Card>
             </li>
           ))}
         </ul>
@@ -291,58 +295,79 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
 
       <hr className="token-divider" />
 
-      <form className="auth-form" onSubmit={handleCreate} noValidate>
+      <form className="ui-form" onSubmit={handleCreate} noValidate>
         <h3>Create a token</h3>
 
-        <label className="field">
-          <span>Name</span>
-          <input
+        <Field id="token-name" label="Name" error={nameError}>
+          <TextInput
             type="text"
             value={name}
             maxLength={255}
             onChange={(event) => setName(event.target.value)}
           />
-          {nameError && <small className="field-error">{nameError}</small>}
-        </label>
+        </Field>
 
-        <label className="field">
-          <span>Abilities (comma-separated, optional)</span>
-          <input
+        <Field
+          id="token-abilities"
+          label="Abilities (comma-separated, optional)"
+          error={abilitiesError}
+        >
+          <TextInput
             type="text"
             value={abilities}
             placeholder="server:update, reports:read"
             onChange={(event) => setAbilities(event.target.value)}
           />
-          {abilitiesError && (
-            <small className="field-error">{abilitiesError}</small>
-          )}
-        </label>
+        </Field>
 
         <p className="muted">
           Leave abilities blank to grant full access. Up to {MAX_ABILITIES}{' '}
           abilities per token.
         </p>
 
-        <button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Creating…' : 'Create token'}
-        </button>
+        </Button>
       </form>
 
       <hr className="token-divider" />
 
       <div className="token-footer">
-        <button
-          type="button"
-          className="token-delete"
+        <Button
+          variant="danger"
           disabled={isRevokingAll}
-          onClick={() => void handleRevokeAll()}
+          onClick={() => setIsConfirmingRevokeAll(true)}
         >
           {isRevokingAll ? 'Revoking…' : 'Revoke all tokens'}
-        </button>
-        <button type="button" className="counter" onClick={onBack}>
+        </Button>
+        <Button variant="secondary" onClick={onBack}>
           Back
-        </button>
+        </Button>
       </div>
+
+      <Dialog
+        open={isConfirmingRevokeAll}
+        title="Revoke all API tokens?"
+        onClose={() => setIsConfirmingRevokeAll(false)}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setIsConfirmingRevokeAll(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => void handleRevokeAll()}>
+              Revoke all and sign out
+            </Button>
+          </>
+        }
+      >
+        <p className="muted">
+          This revokes every token on your account, including the session you
+          are using now, and signs you out.
+        </p>
+      </Dialog>
     </div>
   )
 }

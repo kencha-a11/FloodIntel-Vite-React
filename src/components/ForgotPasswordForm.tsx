@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Alert, Button, Field, TextInput } from './ui'
 import { AuthApiError, forgotPassword } from '../lib/authApi'
 import { isBlank, isEmail } from '../lib/validation'
 
@@ -49,7 +50,7 @@ export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <form className="auth-form" onSubmit={handleSubmit} noValidate>
+    <form className="ui-form" onSubmit={handleSubmit} noValidate>
       <h2>Forgot password</h2>
 
       <p className="muted">
@@ -57,40 +58,26 @@ export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
         you a password reset link.
       </p>
 
-      {message && (
-        <p className="form-success" role="status">
-          {message}
-        </p>
-      )}
+      {message && <Alert tone="success">{message}</Alert>}
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label className="field">
-        <span>Email</span>
-        <input
+      <Field id="forgot-email" label="Email" error={errors.email}>
+        <TextInput
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
         />
-        {errors.email && (
-          <small className="field-error">{errors.email}</small>
-        )}
-      </label>
+      </Field>
 
-      <button type="submit" disabled={isSubmitting}>
+      <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? 'Sending…' : 'Send reset link'}
-      </button>
+      </Button>
 
-      <p className="switch">
-        <button type="button" className="link" onClick={onBack}>
-          Back to sign in
-        </button>
-      </p>
+      <Button variant="quiet" onClick={onBack}>
+        Back to sign in
+      </Button>
     </form>
   )
 }

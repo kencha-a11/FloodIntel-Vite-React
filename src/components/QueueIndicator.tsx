@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react'
+import { Button, EmptyState } from './ui'
 import { useAuth } from '../context/useAuth'
 import { useQueue } from '../context/useQueue'
-import { FLOOD_LEVELS } from '../lib/floodLevels'
+import { LEGACY_DEPTH_LABEL, alertTierLabel, floodLevelLabel } from '../lib/vocabulary'
 import { formatDuration } from '../lib/format'
 import type { QueueItem, QueueOutcome } from '../types/queue'
 
 function levelLabel(item: QueueItem): string {
-  const level =
-    FLOOD_LEVELS.find(
-      (level) => level.value === item.payload.flood_level,
-    )?.label ?? item.payload.flood_level ?? ''
+  if (item.kind === 'impact') {
+    return 'Impact report'
+  }
 
-  return level
+  if (item.payload.alert_level !== null && item.payload.alert_level !== undefined) {
+    return alertTierLabel(item.payload.alert_level)
+  }
+
+  const depth = floodLevelLabel(item.payload.flood_level)
+
+  return depth === null ? LEGACY_DEPTH_LABEL : `${LEGACY_DEPTH_LABEL}: ${depth}`
 }
 
 function formatSize(bytes: number): string {
@@ -94,9 +100,9 @@ export function QueueIndicator() {
           {authStale
             ? 'Saved reports need a fresh sign-in (12-hour limit).'
             : 'Your session ended. Sign in again to send saved reports.'}{' '}
-          <button type="button" className="link" onClick={logout}>
+          <Button variant="quiet" onClick={logout}>
             Sign in again
-          </button>
+          </Button>
         </p>
       )}
 
@@ -110,34 +116,32 @@ export function QueueIndicator() {
       {notice !== null && (
         <p className={noticeClass(notice)} role="status">
           {notice.message}{' '}
-          <button
-            type="button"
-            className="link"
-            onClick={dismissOutcomes}
-          >
+          <Button variant="quiet" onClick={dismissOutcomes}>
             Dismiss
-          </button>
+          </Button>
         </p>
       )}
 
-      <button
-        type="button"
-        className="counter queue-button"
+      <Button
+        variant="secondary"
+        size="compact"
+        className="queue-button"
         aria-expanded={open}
+        aria-controls="queue-panel"
         onClick={() => setOpen((current) => !current)}
       >
         {pendingCount > 0 ? `Queue (${pendingCount})` : 'Queue'}
         {!online && <span className="queue-offline">offline</span>}
-      </button>
+      </Button>
 
       {running && <span className="muted queue-running">Syncing…</span>}
 
       {open && (
-        <div className="queue-panel">
-          <h3>Offline queue</h3>
+        <div className="queue-panel" id="queue-panel">
+          <h2>Offline queue</h2>
 
           {items.length === 0 ? (
-            <p className="muted">No saved reports.</p>
+            <EmptyState title="No saved reports." />
           ) : (
             <ul className="queue-items">
               {items.map((item) => (
@@ -162,13 +166,12 @@ export function QueueIndicator() {
                       </span>
                     )}
                     {item.status !== 'syncing' && (
-                      <button
-                        type="button"
-                        className="link"
+                      <Button
+                        variant="quiet"
                         onClick={() => void retry(item.id)}
                       >
                         Retry
-                      </button>
+                      </Button>
                     )}
                   </div>
 
@@ -181,20 +184,20 @@ export function QueueIndicator() {
           )}
 
           <div className="queue-actions">
-            <button
-              type="button"
-              className="counter"
+            <Button
+              variant="secondary"
+              size="compact"
               disabled={items.length === 0 || !online}
               onClick={() => void retryAll()}
             >
               Retry all
-            </button>
+            </Button>
 
             {confirmClear ? (
               <>
-                <button
-                  type="button"
-                  className="counter"
+                <Button
+                  variant="danger"
+                  size="compact"
                   onClick={() => {
                     void clearDeviceData()
                     setConfirmClear(false)
@@ -202,24 +205,22 @@ export function QueueIndicator() {
                 >
                   Delete {items.length} saved report
                   {items.length === 1 ? '' : 's'}
-                </button>
-                <button
-                  type="button"
-                  className="link"
+                </Button>
+                <Button
+                  variant="quiet"
                   onClick={() => setConfirmClear(false)}
                 >
                   Cancel
-                </button>
+                </Button>
               </>
             ) : (
-              <button
-                type="button"
-                className="link"
+              <Button
+                variant="quiet"
                 disabled={items.length === 0}
                 onClick={() => setConfirmClear(true)}
               >
                 Clear saved data
-              </button>
+              </Button>
             )}
           </div>
         </div>

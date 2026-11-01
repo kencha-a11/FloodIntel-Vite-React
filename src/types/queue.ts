@@ -1,6 +1,6 @@
 import type { AlertLevel, FloodLevel, FloodType } from './report'
 
-export type QueueItemKind = 'level'
+export type QueueItemKind = 'level' | 'impact'
 
 export type QueueItemStatus =
   | 'queued'
@@ -22,11 +22,21 @@ export interface LevelReportPayload {
   reported_at: string | null
 }
 
-export interface QueueItem {
+export interface ImpactReportPayload {
+  event_id: number
+  families: number
+  individuals: number
+  breakdown?: Record<string, number> | null
+  related_level_report_ids?: number[] | null
+  remarks: string | null
+  reported_at: string | null
+}
+
+export type ReportPayload = LevelReportPayload | ImpactReportPayload
+
+interface QueueItemBase {
   id: string
   userId: number
-  kind: QueueItemKind
-  payload: LevelReportPayload
   photo: ArrayBuffer
   photoType: string
   photoName: string
@@ -37,6 +47,22 @@ export interface QueueItem {
   nextAttemptAt: number | null
   createdAt: number
   observedAt: string
+}
+
+export interface LevelQueueItem extends QueueItemBase {
+  kind: 'level'
+  payload: LevelReportPayload
+}
+
+export interface ImpactQueueItem extends QueueItemBase {
+  kind: 'impact'
+  payload: ImpactReportPayload
+}
+
+export type QueueItem = LevelQueueItem | ImpactQueueItem
+
+export type QueueItemPatch = Partial<QueueItemBase> & {
+  payload?: ReportPayload
 }
 
 export type QueueOutcomeStatus =

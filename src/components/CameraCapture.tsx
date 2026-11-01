@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from './ui'
 
 interface CameraCaptureProps {
   onCapture: (blob: Blob) => void
@@ -121,9 +122,9 @@ export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
     return (
       <div className="camera-error" role="alert">
         <p>{error}</p>
-        <button type="button" className="link" onClick={startCamera}>
+        <Button variant="quiet" onClick={startCamera}>
           Try again
-        </button>
+        </Button>
         <p className="muted">
           There is no gallery or file-selection fallback. A live camera capture
           is required to submit a flood report.
@@ -143,40 +144,30 @@ export function CameraCapture({ onCapture, onError }: CameraCaptureProps) {
           style={{ display: isReady ? 'block' : 'none' }}
         />
         {isReady && (
-          <button
-            type="button"
-            className="capture-button"
+          <Button
+            variant="primary"
+            size="field"
             onClick={captureFrame}
             aria-label="Capture photo"
           >
             Capture
-          </button>
+          </Button>
         )}
       </div>
 
       {!isReady && error === null && (
-        <button type="button" className="counter" onClick={() => void startCamera()}>
+        <Button variant="secondary" onClick={() => void startCamera()}>
           Open camera
-        </button>
+        </Button>
       )}
       {isReady && (
         <div className="camera-actions">
-          <button
-            type="button"
-            className="link"
-            onClick={cleanup}
-            aria-label="Close camera"
-          >
+          <Button variant="quiet" onClick={cleanup} aria-label="Close camera">
             Close camera
-          </button>
-          <button
-            type="button"
-            className="link"
-            onClick={retake}
-            aria-label="Retake photo"
-          >
+          </Button>
+          <Button variant="quiet" onClick={retake} aria-label="Retake photo">
             Retake
-          </button>
+          </Button>
           <p className="muted">
             Point the camera at the flood scene, then tap Capture. The photo is
             taken live from the camera — gallery selection is not available.

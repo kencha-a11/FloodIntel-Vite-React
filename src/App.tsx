@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useAuth } from './context/useAuth'
+import { AppShell, type AppView } from './components/AppShell'
+import { AuthShell } from './components/AuthShell'
 import { EmailVerificationResult } from './components/EmailVerificationResult'
 import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
 import { FloodReportForm } from './components/FloodReportForm'
@@ -14,19 +16,17 @@ import { QueueIndicator } from './components/QueueIndicator'
 import { readEmailVerificationStatus } from './lib/emailVerification'
 import './App.css'
 
+const MapView = lazy(() => import('./components/MapView'))
+
 type AuthMode = 'login' | 'forgot-password'
-type AppView = 'capture' | 'reports' | 'detail' | 'tokens'
 
 const ABILITY_SUBMIT_FLOOD_REPORT = 'submit-flood-report'
 const ABILITY_VIEW_ALL_BARANGAYS = 'view-all-barangays'
 const ABILITY_MANAGE_USERS = 'manage-users'
+const ABILITY_VIEW_VALIDATED_REPORTS = 'view-validated-reports'
 
 function isResetPasswordRoute(): boolean {
   return window.location.pathname.replace(/\/+$/, '') === '/reset-password'
-}
-
-function navClass(isActive: boolean): string {
-  return isActive ? 'nav-button is-active' : 'nav-button'
 }
 
 function App() {
@@ -38,60 +38,62 @@ function App() {
   const [mode, setMode] = useState<AuthMode>('login')
   const [view, setView] = useState<AppView | null>(null)
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
+  const userId = user?.id ?? null
+
+  useEffect(() => {
+    setView(null)
+    setSelectedReportId(null)
+  }, [userId])
 
   if (isLoading) {
     return (
-      <section id="center">
+      <AuthShell>
         <p>Loading…</p>
-      </section>
+      </AuthShell>
     )
   }
 
   if (verificationStatus !== null) {
     return (
-      <EmailVerificationResult
-        status={verificationStatus}
-        onDismiss={() => setVerificationDismissed(true)}
-      />
+      <AuthShell>
+        <EmailVerificationResult
+          status={verificationStatus}
+          onDismiss={() => setVerificationDismissed(true)}
+        />
+      </AuthShell>
     )
   }
 
   if (isResetPasswordRoute()) {
     return (
-      <section id="center">
-        <div className="auth-card">
-          <ResetPasswordForm
-            onSignIn={() => {
-              window.history.replaceState({}, '', '/')
-              setMode('login')
-            }}
-          />
-        </div>
-      </section>
+      <AuthShell>
+        <ResetPasswordForm
+          onSignIn={() => {
+            window.history.replaceState({}, '', '/')
+            setMode('login')
+          }}
+        />
+      </AuthShell>
     )
   }
 
   if (user === null) {
     return (
-      <section id="center">
-        <div className="auth-card">
-          {mode === 'forgot-password' ? (
-            <ForgotPasswordForm onBack={() => setMode('login')} />
-          ) : (
-            <LoginForm onForgotPassword={() => setMode('forgot-password')} />
-          )}
-        </div>
-      </section>
+      <AuthShell>
+        {mode === 'forgot-password' ? (
+          <ForgotPasswordForm onBack={() => setMode('login')} />
+        ) : (
+          <LoginForm onForgotPassword={() => setMode('forgot-password')} />
+        )}
+      </AuthShell>
     )
   }
 
   if (!isEmailVerified) {
     return (
-      <section id="center">
-        <div className="auth-card">
-          <EmailVerificationPrompt />
-        </div>
-      </section>
+      <AuthShell>
+        <EmailVerificationPrompt />
+      </AuthShell>
     )
   }
 
@@ -100,85 +102,56 @@ function App() {
   const canReview =
     abilities.includes(ABILITY_VIEW_ALL_BARANGAYS) ||
     abilities.includes(ABILITY_MANAGE_USERS)
+  const canViewMap = abilities.includes(ABILITY_VIEW_VALIDATED_REPORTS)
+  // UX convenience only; the server authorizes every token request (D-08).
+  const canManageTokens = user.interface === 'command_center'
   const activeView = view ?? (canSubmit ? 'capture' : 'reports')
 
   return (
-    <section id="center">
-      <div className="auth-card app-card">
-        <header className="app-header">
-          <div>
-            <h1>
-              Welcome, {user.first_name} {user.last_name}
-            </h1>
-            <p className="muted">
-              {user.role_label} ·{' '}
-              {user.barangay !== null ? user.barangay.name : 'All barangays'}
-            </p>
-          </div>
-          <div className="app-header-actions">
-            <QueueIndicator />
-            <button type="button" className="counter" onClick={logout}>
-              Log out
-            </button>
-          </div>
-        </header>
+    <AppShell
+      user={user}
+      activeView={activeView}
+      canSubmit={canSubmit}
+      canReview={canReview}
+      canViewMap={canViewMap}
+      canManageTokens={canManageTokens}
+      onNavigate={setView}
+      onLogout={logout}
+      actions={<QueueIndicator />}
+    >
+      <PwaUpdatePrompt />
 
-        <PwaUpdatePrompt />
+      {activeView === 'capture' && canSubmit && (
+        <FloodReportForm onViewReports={() => setView('reports')} />
+      )}
 
-        <nav className="app-nav">
-          {canSubmit && (
-            <button
-              type="button"
-              className={navClass(activeView === 'capture')}
-              onClick={() => setView('capture')}
-            >
-              New report
-            </button>
-          )}
+      {activeView === 'reports' && (
+        <ReportList
+          canFilter={canReview}
+          onSelect={(reportId) => {
+            setSelectedReportId(reportId)
+            setView('detail')
+          }}
+        />
+      )}
 
-          <button
-            type="button"
-            className={navClass(activeView === 'reports')}
-            onClick={() => setView('reports')}
-          >
-            {canReview ? 'Review queue' : 'Reports'}
-          </button>
+      {activeView === 'detail' && selectedReportId !== null && (
+        <ReportDetail
+          reportId={selectedReportId}
+          onBack={() => setView('reports')}
+        />
+      )}
 
-          <button
-            type="button"
-            className={navClass(activeView === 'tokens')}
-            onClick={() => setView('tokens')}
-          >
-            API tokens
-          </button>
-        </nav>
+      {activeView === 'map' && (
+        <Suspense fallback={<p className="muted">Loading map…</p>}>
+          <MapView canViewValidatedFeed={canViewMap} />
+        </Suspense>
+      )}
 
-        {activeView === 'capture' && canSubmit && (
-          <FloodReportForm onViewReports={() => setView('reports')} />
-        )}
-
-        {activeView === 'reports' && (
-          <ReportList
-            canFilter={canReview}
-            onSelect={(reportId) => {
-              setSelectedReportId(reportId)
-              setView('detail')
-            }}
-          />
-        )}
-
-        {activeView === 'detail' && selectedReportId !== null && (
-          <ReportDetail
-            reportId={selectedReportId}
-            onBack={() => setView('reports')}
-          />
-        )}
-
-        {activeView === 'tokens' && (
-          <TokenManager onBack={() => setView(null)} />
-        )}
-      </div>
-    </section>
+      {activeView === 'tokens' && canManageTokens && (
+        <TokenManager onBack={() => setView(null)} />
+      )}
+    </AppShell>
   )
 }
 

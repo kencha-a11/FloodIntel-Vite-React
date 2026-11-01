@@ -18,7 +18,11 @@ import {
 } from './offlineQueue'
 import { isSyncWindowExpired, readLastAuthenticatedAt } from './session'
 import type { FloodReport, FloodReportInput, Paginated } from '../types/report'
-import type { QueueItem, QueueOutcome } from '../types/queue'
+import type {
+  QueueItem,
+  QueueItemPatch,
+  QueueOutcome,
+} from '../types/queue'
 
 const BACKOFF_MS = [
   15_000,
@@ -53,10 +57,10 @@ export interface SyncDeps {
   list: (userId: number) => Promise<QueueItem[]>
   update: (
     id: string,
-    patch: Partial<QueueItem>,
+    patch: QueueItemPatch,
   ) => Promise<QueueItem | null>
   remove: (id: string) => Promise<void>
-  send: (token: string, item: QueueItem) => Promise<FloodReport>
+  send: (token: string, item: QueueItem) => Promise<{ id: number }>
   findDuplicate: (
     token: string,
     item: QueueItem,
@@ -78,6 +82,12 @@ export function isReplayMatch(
   report: FloodReport,
   item: QueueItem,
 ): boolean {
+  // Duplicate lookup reads the level-report endpoint, so only a level item
+  // can have a match there.
+  if (item.kind !== 'level') {
+    return false
+  }
+
   if (report.user.id !== item.userId) {
     return false
   }
@@ -122,7 +132,11 @@ export function isNetworkFailure(err: unknown): boolean {
 async function sendItem(
   token: string,
   item: QueueItem,
-): Promise<FloodReport> {
+): Promise<{ id: number }> {
+  if (item.kind === 'impact') {
+    return reportApi.submitImpactReport(token, item.payload)
+  }
+
   const photo = new Blob([item.photo], { type: item.photoType })
 
   return reportApi.submitReport(
@@ -365,6 +379,7 @@ export async function runSync(
 
       if (err.status === 422) {
         if (
+          item.kind === 'level' &&
           err.errors.reported_at !== undefined &&
           item.payload.reported_at !== null
         ) {

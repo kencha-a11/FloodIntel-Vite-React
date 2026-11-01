@@ -11,9 +11,9 @@ import {
   removeQueueItem,
   updateQueueItem,
 } from './offlineQueue'
-import type { QueueItem } from '../types/queue'
+import type { LevelQueueItem } from '../types/queue'
 
-function makeItem(overrides: Partial<QueueItem> = {}): QueueItem {
+function makeItem(overrides: Partial<LevelQueueItem> = {}): LevelQueueItem {
   return {
     id: `item-${Math.random().toString(16).slice(2)}`,
     userId: 1,

@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import type { DBSchema, IDBPDatabase } from 'idb'
-import type { QueueItem } from '../types/queue'
+import type { QueueItem, QueueItemPatch } from '../types/queue'
 
 const DB_NAME = 'floodintel-offline'
 const DB_VERSION = 1
@@ -157,7 +157,7 @@ export async function getQueueItem(id: string): Promise<QueueItem | null> {
 
 export async function updateQueueItem(
   id: string,
-  patch: Partial<QueueItem>,
+  patch: QueueItemPatch,
 ): Promise<QueueItem | null> {
   const db = await getDb()
   const existing = await db.get('queue', id)
@@ -166,7 +166,9 @@ export async function updateQueueItem(
     return null
   }
 
-  const updated: QueueItem = { ...existing, ...patch }
+  // The spread of two unrelated unions is not correlated, but the merge
+  // preserves the existing variant, which is what the storage record needs.
+  const updated = { ...existing, ...patch } as QueueItem
   await db.put('queue', updated)
   notify()
 

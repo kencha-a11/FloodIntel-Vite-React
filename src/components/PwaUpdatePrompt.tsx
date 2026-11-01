@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { isDraftDirty, subscribeToDraft } from '../lib/draftGuard'
+import { Button } from './ui'
 
 export function PwaUpdatePrompt() {
   const {
@@ -19,14 +20,9 @@ export function PwaUpdatePrompt() {
         A new version of FloodIntel is available.
         {dirty ? ' Finish this report before reloading.' : ''}
       </span>
-      <button
-        type="button"
-        className="counter"
-        disabled={dirty}
-        onClick={() => void updateServiceWorker(true)}
-      >
+      <Button variant="secondary" disabled={dirty} onClick={() => void updateServiceWorker(true)}>
         {dirty ? 'Finish report first' : 'Reload'}
-      </button>
+      </Button>
     </div>
   )
 }

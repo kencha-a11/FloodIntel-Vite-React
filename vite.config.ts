@@ -4,6 +4,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const devApiTarget = process.env.VITE_DEV_API_TARGET || 'http://localhost:8001'
 
+const apiProxy = {
+  '/api': {
+    target: devApiTarget,
+    changeOrigin: true,
+  },
+  '/storage': {
+    target: devApiTarget,
+    changeOrigin: true,
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -39,22 +50,43 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        globIgnores: ['**/MapView-*.js', '**/MapView-*.css'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/storage\//],
         cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/(?:MapView-|maplibre-gl-worker-)[^/]*\.(?:js|mjs|css)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-runtime',
+              expiration: {
+                maxEntries: 8,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /\/geo\/.*\.(?:geojson|json|bin)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'geo-artifacts',
+              expiration: {
+                maxEntries: 16,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],
   server: {
-    proxy: {
-      '/api': {
-        target: devApiTarget,
-        changeOrigin: true,
-      },
-      '/storage': {
-        target: devApiTarget,
-        changeOrigin: true,
-      },
-    },
+    proxy: apiProxy,
+  },
+  preview: {
+    proxy: apiProxy,
   },
 })

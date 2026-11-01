@@ -4,7 +4,7 @@ export type FloodLevel = 'ankle' | 'knee' | 'waist' | 'chest' | 'neck'
 export type AlertLevel = 'alert' | 'get_ready' | 'red_alert'
 export type FloodType = 'river_overflow' | 'ponding'
 
-export type FloodReportStatus = 'submitted' | 'rejected'
+export type FloodReportStatus = 'submitted' | 'validated' | 'returned' | 'rejected'
 
 export interface FloodReportUser {
   id: number
@@ -16,6 +16,24 @@ export interface FloodReportUser {
 export interface FloodReportBarangay {
   id: number
   name: string
+}
+
+export interface AnomalyFlag {
+  value: string
+  label: string
+}
+
+export interface FloodReportStatusChange {
+  id: number
+  actor_name: string
+  actor_role: UserRole
+  actor_role_label: string | null
+  from_status: FloodReportStatus | null
+  from_status_label: string | null
+  to_status: FloodReportStatus
+  to_status_label: string
+  reason: string | null
+  created_at: string
 }
 
 export interface Barangay {
@@ -47,9 +65,41 @@ export interface FloodReport {
   notes: string | null
   reported_at: string
   status: FloodReportStatus
+  status_label: string
+  status_changes?: FloodReportStatusChange[]
+  anomaly_flags: AnomalyFlag[]
   rejection_reason: string | null
   rejected_at: string | null
   created_at: string
+}
+
+export interface ValidatedFeedRow {
+  id: number
+  latitude: number
+  longitude: number
+  gps_accuracy: number | null
+  barangay: FloodReportBarangay
+  alert_level: AlertLevel
+  alert_level_label: string
+  alert_severity: number
+  depth_cm: number | null
+  observed_at: string
+  received_at: string
+  status: 'validated'
+  status_label: string
+  source: 'reported'
+  source_label: string
+}
+
+export interface ValidatedFeedMeta {
+  limit: number
+  count: number
+  truncated: boolean
+}
+
+export interface ValidatedFeedPage {
+  data: ValidatedFeedRow[]
+  meta: ValidatedFeedMeta
 }
 
 type FloodReportInputBase = {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Alert, Button, Field, TextInput } from './ui'
 import { useAuth } from '../context/useAuth'
 import { formatDuration } from '../lib/format'
 import { isBlank } from '../lib/validation'
@@ -49,54 +50,49 @@ export function LoginForm({
   const passwordError = errors.password ?? fieldErrors.password?.[0]
 
   return (
-    <form className="auth-form" onSubmit={handleSubmit} noValidate>
+    <form className="ui-form" onSubmit={handleSubmit} noValidate>
       <h2>Sign in</h2>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+      {lockoutSeconds > 0 ? (
+        <Alert tone="warning" role="status">
+          Too many sign-in attempts. Try again in{' '}
+          {formatDuration(lockoutSeconds)}.
+        </Alert>
+      ) : (
+        error && <Alert tone="danger">{error}</Alert>
       )}
 
-      <label className="field">
-        <span>Email or contact number</span>
-        <input
+      <Field
+        id="login-identifier"
+        label="Email or contact number"
+        error={identifierError}
+      >
+        <TextInput
           type="text"
           value={identifier}
           onChange={(event) => setIdentifier(event.target.value)}
           autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
         />
-        {identifierError && (
-          <small className="field-error">{identifierError}</small>
-        )}
-      </label>
+      </Field>
 
-      <label className="field">
-        <span>Password</span>
-        <input
+      <Field id="login-password" label="Password" error={passwordError}>
+        <TextInput
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
         />
-        {passwordError && (
-          <small className="field-error">{passwordError}</small>
-        )}
-      </label>
+      </Field>
 
-      <button type="submit" disabled={isSubmitting || lockoutSeconds > 0}>
-        {lockoutSeconds > 0
-          ? `Try again in ${formatDuration(lockoutSeconds)}`
-          : isSubmitting
-            ? 'Signing in…'
-            : 'Sign in'}
-      </button>
+      <Button type="submit" disabled={isSubmitting || lockoutSeconds > 0}>
+        {isSubmitting ? 'Signing in…' : 'Sign in'}
+      </Button>
 
-      <p className="switch">
-        <button type="button" className="link" onClick={onForgotPassword}>
-          Forgot password?
-        </button>
-      </p>
+      <Button variant="quiet" onClick={onForgotPassword}>
+        Forgot password?
+      </Button>
 
       <p className="muted">
         Accounts are created by your MDRRMO administrator. Contact them if you

@@ -1,8 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/useAuth'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
 import { FLOOD_LEVELS } from '../lib/floodLevels'
 import * as reportApi from '../lib/reportApi'
+import {
+  LEGACY_DEPTH_LABEL,
+  REPORT_STATUSES,
+  alertTierLabel,
+  alertTierTone,
+  floodLevelLabel,
+  legacyDepthLevel,
+  reportStatusLabel,
+  reportStatusTone,
+} from '../lib/vocabulary'
+import { reportRealtimeLatency } from '../lib/realtimeApi'
+import { feedPollEnabled } from '../lib/feedPoll'
+import { useFeedPoll } from '../lib/useFeedPoll'
+import { useRealtimeFeed } from '../lib/useRealtimeFeed'
+import { FreshnessBar } from './FreshnessBar'
+import { RealtimeLatencySummary } from './RealtimeLatencySummary'
+import {
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Select,
+  Spinner,
+  TextInput,
+} from './ui'
+import type { RealtimeUpdate } from '../types/realtime'
 import type {
   Barangay,
   FloodLevel,
@@ -43,25 +70,23 @@ export function ReportList({
 }) {
   const { logout } = useAuth()
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS)
-  const [reports, setReports] = useState<FloodReport[]>([])
+  const [reports, setReports] = useState<FloodReport[] | null>(null)
   const [barangays, setBarangays] = useState<Barangay[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [lastPage, setLastPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [latencyRefreshKey, setLatencyRefreshKey] = useState(0)
+  const pendingLatency = useRef<
+    Array<{ reportId: number; event: string }>
+  >([])
+  const refreshRef = useRef<() => void>(() => {})
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      setIsLoading(true)
-      setError(null)
-
+  const load = useCallback(
+    async (signal: AbortSignal) => {
       const token = getStoredToken()
 
       if (token === null) {
-        setIsLoading(false)
         return
       }
 
@@ -72,7 +97,7 @@ export function ReportList({
           to: endOfDay(filters.to),
         })
 
-        if (cancelled) {
+        if (signal.aborted) {
           return
         }
 
@@ -80,34 +105,63 @@ export function ReportList({
         setCurrentPage(response.meta.current_page)
         setLastPage(response.meta.last_page)
         setTotal(response.meta.total)
+        setError(null)
+
+        const applied = pendingLatency.current
+        pendingLatency.current = []
+
+        if (applied.length > 0) {
+          const appliedAt = new Date().toISOString()
+
+          for (const sample of applied) {
+            void reportRealtimeLatency(token, {
+              ...sample,
+              appliedAt,
+            }).catch(() => {})
+          }
+
+          setLatencyRefreshKey((value) => value + 1)
+        }
       } catch (err) {
-        if (cancelled) {
+        if (signal.aborted) {
           return
         }
 
-        if (err instanceof AuthApiError) {
-          if (err.status === 401) {
-            await logout()
-            return
-          }
+        if (err instanceof AuthApiError && err.status === 401) {
+          await logout()
+          throw err
+        }
 
-          setError(err.message)
-        } else {
-          setError('Unable to connect to the server.')
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
+        pendingLatency.current = []
+        setError(
+          err instanceof AuthApiError
+            ? err.message
+            : 'Unable to connect to the server.',
+        )
+        throw err
       }
-    }
+    },
+    [filters, logout],
+  )
 
-    void load()
+  const handleRealtimeUpdate = useCallback((update: RealtimeUpdate) => {
+    pendingLatency.current.push({
+      reportId: update.reportId,
+      event: update.event,
+    })
+    refreshRef.current()
+  }, [])
 
-    return () => {
-      cancelled = true
-    }
-  }, [filters, logout])
+  const { status: realtimeStatus } = useRealtimeFeed(handleRealtimeUpdate)
+  const { lastSuccessAt, refresh } = useFeedPoll(load, {
+    enabled: feedPollEnabled(realtimeStatus),
+  })
+
+  useEffect(() => {
+    refreshRef.current = refresh
+  }, [refresh])
+
+  const isLoading = reports === null && error === null
 
   useEffect(() => {
     let cancelled = false
@@ -156,30 +210,35 @@ export function ReportList({
     <div className="report-list">
       <h2>{canFilter ? 'Flood report queue' : 'Flood reports'}</h2>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      <FreshnessBar
+        lastSuccessAt={lastSuccessAt}
+        live={realtimeStatus === 'live'}
+        onRefresh={refresh}
+      />
+
+      {canFilter && <RealtimeLatencySummary refreshKey={latencyRefreshKey} />}
+
+      {error && <Alert tone="danger">{error}</Alert>}
 
       <div className="filter-bar">
-        <label className="field">
-          <span>Status</span>
-          <select
+        <Field id="filter-status" label="Status">
+          <Select
             value={filters.status}
             onChange={(event) =>
               updateFilter('status', event.target.value as FloodReportStatus | '')
             }
           >
             <option value="">All statuses</option>
-            <option value="submitted">Submitted</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </label>
+            {REPORT_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {reportStatusLabel(status)}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-        <label className="field">
-          <span>Level</span>
-          <select
+        <Field id="filter-level" label={LEGACY_DEPTH_LABEL}>
+          <Select
             value={filters.flood_level}
             onChange={(event) =>
               updateFilter(
@@ -188,19 +247,18 @@ export function ReportList({
               )
             }
           >
-            <option value="">All levels</option>
+            <option value="">All depths</option>
             {FLOOD_LEVELS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
 
         {canFilter && (
-          <label className="field">
-            <span>Barangay</span>
-            <select
+          <Field id="filter-barangay" label="Barangay">
+            <Select
               value={filters.barangay_id}
               onChange={(event) => updateFilter('barangay_id', event.target.value)}
             >
@@ -210,33 +268,31 @@ export function ReportList({
                   {barangay.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
         )}
 
-        <label className="field">
-          <span>From</span>
-          <input
+        <Field id="filter-from" label="From">
+          <TextInput
             type="date"
             value={filters.from}
             onChange={(event) => updateFilter('from', event.target.value)}
           />
-        </label>
+        </Field>
 
-        <label className="field">
-          <span>To</span>
-          <input
+        <Field id="filter-to" label="To">
+          <TextInput
             type="date"
             value={filters.to}
             onChange={(event) => updateFilter('to', event.target.value)}
           />
-        </label>
+        </Field>
       </div>
 
       {isLoading ? (
-        <p className="muted">Loading reports…</p>
-      ) : reports.length === 0 ? (
-        <p className="muted">No reports found.</p>
+        <Spinner label="Loading reports…" />
+      ) : reports === null ? null : reports.length === 0 ? (
+        <EmptyState title="No reports found." />
       ) : (
         <ul className="report-items">
           {reports.map((report) => (
@@ -254,14 +310,23 @@ export function ReportList({
                 />
                 <div className="report-row-body">
                   <div className="report-row-header">
-                    <span className={`severity-badge severity-${report.severity}`}>
-                      {report.alert_level_label ?? report.flood_level_label}
-                    </span>
-                    <span
-                      className={`status-badge status-${report.status}`}
-                    >
-                      {report.status}
-                    </span>
+                    {report.alert_level !== null ? (
+                      <Badge tone={alertTierTone(report.alert_level)}>
+                        {alertTierLabel(report.alert_level)}
+                      </Badge>
+                    ) : (
+                      <Badge severity={legacyDepthLevel(report.severity) ?? undefined}>
+                        Legacy depth: {floodLevelLabel(report.flood_level) ?? 'not recorded'}
+                      </Badge>
+                    )}
+                    <Badge tone={reportStatusTone(report.status)}>
+                      {reportStatusLabel(report.status)}
+                    </Badge>
+                    {report.anomaly_flags.map((flag) => (
+                      <span key={flag.value} className="anomaly-badge">
+                        Flag: {flag.label}
+                      </span>
+                    ))}
                   </div>
                   <p className="report-row-meta">
                     {report.barangay.name} · {report.user.first_name}{' '}
@@ -282,25 +347,25 @@ export function ReportList({
 
       {total > 0 && (
         <div className="pagination">
-          <button
-            type="button"
-            className="counter"
+          <Button
+            variant="secondary"
+            size="compact"
             disabled={currentPage <= 1 || isLoading}
             onClick={() => goToPage(currentPage - 1)}
           >
             Previous
-          </button>
+          </Button>
           <span className="muted">
             Page {currentPage} of {lastPage} · {total} reports
           </span>
-          <button
-            type="button"
-            className="counter"
+          <Button
+            variant="secondary"
+            size="compact"
             disabled={currentPage >= lastPage || isLoading}
             onClick={() => goToPage(currentPage + 1)}
           >
             Next
-          </button>
+          </Button>
         </div>
       )}
     </div>

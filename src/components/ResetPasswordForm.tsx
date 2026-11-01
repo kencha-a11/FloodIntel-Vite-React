@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Alert, Button, Field, TextInput } from './ui'
 import { AuthApiError, resetPassword } from '../lib/authApi'
 import { isBlank } from '../lib/validation'
 
@@ -89,7 +90,7 @@ export function ResetPasswordForm({
 
   if (params.token === null || params.email === null) {
     return (
-      <div>
+      <div className="ui-form">
         <h2>Reset password</h2>
 
         <p className="muted">
@@ -97,74 +98,69 @@ export function ResetPasswordForm({
           the sign in page.
         </p>
 
-        <button type="button" className="counter" onClick={onSignIn}>
+        <Button variant="secondary" onClick={onSignIn}>
           Sign in
-        </button>
+        </Button>
       </div>
     )
   }
 
   if (message !== null) {
     return (
-      <div>
+      <div className="ui-form">
         <h2>Password reset</h2>
 
         <p className="muted">
           {message} You can now sign in with your new password.
         </p>
 
-        <button type="button" className="counter" onClick={onSignIn}>
+        <Button variant="secondary" onClick={onSignIn}>
           Sign in
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
-    <form className="auth-form" onSubmit={handleSubmit} noValidate>
+    <form className="ui-form" onSubmit={handleSubmit} noValidate>
       <h2>Reset password</h2>
 
       <p className="muted">
         Enter a new password for <strong>{params.email}</strong>.
       </p>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label className="field">
-        <span>New password</span>
-        <input
+      <Field
+        id="reset-password"
+        label="New password"
+        hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
+        error={errors.password}
+      >
+        <TextInput
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="new-password"
         />
-        {errors.password && (
-          <small className="field-error">{errors.password}</small>
-        )}
-      </label>
+      </Field>
 
-      <label className="field">
-        <span>Confirm new password</span>
-        <input
+      <Field
+        id="reset-password-confirmation"
+        label="Confirm new password"
+        error={errors.password_confirmation}
+      >
+        <TextInput
           type="password"
           value={passwordConfirmation}
           onChange={(event) => setPasswordConfirmation(event.target.value)}
           autoComplete="new-password"
         />
-        {errors.password_confirmation && (
-          <small className="field-error">
-            {errors.password_confirmation}
-          </small>
-        )}
-      </label>
+      </Field>
 
-      <button type="submit" disabled={isSubmitting}>
+      <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? 'Resetting…' : 'Reset password'}
-      </button>
+      </Button>
     </form>
   )
 }

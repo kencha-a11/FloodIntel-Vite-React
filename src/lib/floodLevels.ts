@@ -1,12 +1,11 @@
 import type { FloodLevel } from '../types/report'
+import { LEGACY_DEPTH_LABELS } from './vocabulary'
 
-export const FLOOD_LEVELS: { value: FloodLevel; label: string }[] = [
-  { value: 'ankle', label: 'Ankle-deep' },
-  { value: 'knee', label: 'Knee-deep' },
-  { value: 'waist', label: 'Waist-deep' },
-  { value: 'chest', label: 'Chest-deep' },
-  { value: 'neck', label: 'Neck-deep or above' },
-]
+const DEPTH_ORDER: FloodLevel[] = ['ankle', 'knee', 'waist', 'chest', 'neck']
+
+export const FLOOD_LEVELS: { value: FloodLevel; label: string }[] = DEPTH_ORDER.map(
+  (value) => ({ value, label: LEGACY_DEPTH_LABELS[value] }),
+)
 
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 

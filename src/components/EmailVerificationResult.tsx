@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Button } from './ui'
 import { useAuth } from '../context/useAuth'
 import {
   clearEmailVerificationStatus,
@@ -25,20 +26,18 @@ export function EmailVerificationResult({
   }, [])
 
   return (
-    <section id="center">
-      <div className="auth-card">
-        <h2>{status === 'verified' ? 'Email verified' : 'Verification failed'}</h2>
+    <div className="ui-form">
+      <h2>{status === 'verified' ? 'Email verified' : 'Verification failed'}</h2>
 
-        <p className="muted">
-          {status === 'verified'
-            ? 'Your email address has been verified successfully.'
-            : 'This verification link is invalid or has expired. Please request a new link to verify your email address.'}
-        </p>
+      <p className="muted">
+        {status === 'verified'
+          ? 'Your email address has been verified successfully.'
+          : 'This verification link is invalid or has expired. Please request a new link to verify your email address.'}
+      </p>
 
-        <button type="button" className="counter" onClick={onDismiss}>
-          Continue
-        </button>
-      </div>
-    </section>
+      <Button variant="secondary" onClick={onDismiss}>
+        Continue
+      </Button>
+    </div>
   )
 }

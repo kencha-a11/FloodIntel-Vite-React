@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Alert, Button } from './ui'
 import { useAuth } from '../context/useAuth'
 import type { ResendVerificationResult } from '../context/AuthContext'
 
@@ -44,7 +45,7 @@ export function EmailVerificationPrompt() {
   const isDisabled = isSubmitting || cooldown > 0
 
   return (
-    <form className="auth-form" onSubmit={handleResend} noValidate>
+    <form className="ui-form" onSubmit={handleResend} noValidate>
       <h2>Verify your email</h2>
 
       <p className="muted">
@@ -53,21 +54,18 @@ export function EmailVerificationPrompt() {
       </p>
 
       {result && (
-        <p
-          className={result.status === 'error' ? 'form-error' : 'form-success'}
-          role="status"
-        >
+        <Alert tone={result.status === 'error' ? 'danger' : 'success'}>
           {result.message}
-        </p>
+        </Alert>
       )}
 
-      <button type="submit" disabled={isDisabled}>
+      <Button type="submit" disabled={isDisabled}>
         {cooldown > 0
           ? `Resend link in ${cooldown}s`
           : isSubmitting
             ? 'Sending…'
             : 'Resend verification link'}
-      </button>
+      </Button>
     </form>
   )
 }
