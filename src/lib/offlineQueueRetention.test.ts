@@ -56,7 +56,7 @@ describe('enqueue replacement', () => {
 
     expect(stored.map((item) => item.id)).toEqual(['resubmission'])
     expect(stored[0].status).toBe('queued')
-    expect(stored[0].photoBytes).toBe(16)
+    expect(stored[0].kind === 'level' ? stored[0].photoBytes : null).toBe(16)
     expect(await getQueueItem('attempt')).toBeNull()
   })
 

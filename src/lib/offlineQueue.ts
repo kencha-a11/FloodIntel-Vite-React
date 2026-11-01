@@ -98,6 +98,11 @@ export function exceedsQueueLimit(
   )
 }
 
+/** Only a level item carries a photo; the others count nothing toward the cap. */
+export function queueItemBytes(item: QueueItem): number {
+  return item.kind === 'level' ? item.photoBytes : 0
+}
+
 function isQuotaError(err: unknown): boolean {
   return (
     err instanceof DOMException &&
@@ -118,11 +123,14 @@ export async function enqueue(
     // Replacing a record cannot grow the queue, so the caps exclude the
     // record being replaced.
     const retained = items.filter((entry) => entry.id !== replaceId)
-    const bytes = retained.reduce((total, entry) => total + entry.photoBytes, 0)
+    const bytes = retained.reduce(
+      (total, entry) => total + queueItemBytes(entry),
+      0,
+    )
 
-    if (exceedsQueueLimit(retained.length, bytes, item.photoBytes)) {
+    if (exceedsQueueLimit(retained.length, bytes, queueItemBytes(item))) {
       throw new QueueFullError(
-        'The offline queue is full. Connect to the internet to send the saved reports before adding more.',
+        'The offline queue is full. Connect to the internet to send the saved items before adding more.',
       )
     }
 
@@ -140,7 +148,7 @@ export async function enqueue(
 
     if (isQuotaError(err)) {
       throw new QueueFullError(
-        'This device has no storage left for offline reports. Free up space and try again.',
+        'This device has no storage left for offline items. Free up space and try again.',
       )
     }
 

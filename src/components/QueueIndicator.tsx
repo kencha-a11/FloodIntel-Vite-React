@@ -26,9 +26,13 @@ const STATUS_TONES: Record<QueueItemStatus, 'neutral' | 'info' | 'danger' | 'war
   'auth-required': 'warning',
 }
 
-function levelLabel(item: QueueItem): string {
+function itemLabel(item: QueueItem): string {
   if (item.kind === 'impact') {
     return 'Impact report'
+  }
+
+  if (item.kind === 'tag') {
+    return 'Access tag'
   }
 
   if (item.payload.alert_level !== null && item.payload.alert_level !== undefined) {
@@ -38,6 +42,16 @@ function levelLabel(item: QueueItem): string {
   const depth = floodLevelLabel(item.payload.flood_level)
 
   return depth === null ? LEGACY_DEPTH_LABEL : `${LEGACY_DEPTH_LABEL}: ${depth}`
+}
+
+function itemNoun(item: QueueItem): string {
+  return item.kind === 'tag' ? 'tag' : 'report'
+}
+
+function discardConsequence(item: QueueItem): string {
+  return item.kind === 'level'
+    ? 'Its photo and saved details are deleted from this device.'
+    : 'Its saved details are deleted from this device.'
 }
 
 function formatSize(bytes: number): string {
@@ -76,25 +90,25 @@ function noticeTone(outcome: QueueOutcome): AlertTone {
   return 'info'
 }
 
-function reportCount(count: number): string {
-  return count === 1 ? '1 saved report' : `${count} saved reports`
+function savedItemCount(count: number): string {
+  return count === 1 ? '1 saved item' : `${count} saved items`
 }
 
 function authBannerText(stale: boolean, pendingCount: number): string {
   const reason = stale
-    ? 'Saved reports need a fresh sign-in (12-hour limit).'
+    ? 'Saved items need a fresh sign-in (12-hour limit).'
     : 'Your session ended.'
 
   return pendingCount > 0
-    ? `${reason} Sign in again to send ${reportCount(pendingCount)}.`
+    ? `${reason} Sign in again to send ${savedItemCount(pendingCount)}.`
     : `${reason} Sign in again to continue.`
 }
 
 function queueAnnouncement(pendingCount: number, failedCount: number): string {
   const pending =
     pendingCount === 0
-      ? 'No saved reports waiting to send.'
-      : `${reportCount(pendingCount)} waiting to send.`
+      ? 'No saved items waiting to send.'
+      : `${savedItemCount(pendingCount)} waiting to send.`
   const failed = failedCount === 0 ? '' : ` ${failedCount} not sent.`
 
   return `${pending}${failed}`
@@ -191,17 +205,17 @@ export function QueueIndicator() {
           <h2 id="queue-panel-title">Offline queue</h2>
 
           {!loaded ? (
-            <Spinner label="Checking saved reports…" />
+            <Spinner label="Checking saved items…" />
           ) : items.length === 0 ? (
             <EmptyState
-              title="No saved reports."
-              description="A report captured without a connection stays here until the centre receives it."
+              title="No saved items."
+              description="A report or access tag captured without a connection stays here until the centre receives it."
             />
           ) : (
             <>
               {!online && (
                 <Alert tone="warning" className="queue-alert">
-                  You are offline. Saved reports will send when the connection
+                  You are offline. Saved items will send when the connection
                   returns.
                 </Alert>
               )}
@@ -210,7 +224,7 @@ export function QueueIndicator() {
                 {items.map((item) => (
                   <li key={item.id} className="queue-item">
                     <div className="queue-item-head">
-                      <strong>{levelLabel(item)}</strong>
+                      <strong>{itemLabel(item)}</strong>
                       <Badge tone={STATUS_TONES[item.status]}>
                         {STATUS_LABELS[item.status]}
                       </Badge>
@@ -225,8 +239,9 @@ export function QueueIndicator() {
                       </time>
                       <span className="muted">
                         {' '}
-                        · {formatAge(item.createdAt)} ·{' '}
-                        {formatSize(item.photoBytes)}
+                        · {formatAge(item.createdAt)}
+                        {item.kind === 'level' &&
+                          ` · ${formatSize(item.photoBytes)}`}
                       </span>
                     </p>
 
@@ -262,8 +277,8 @@ export function QueueIndicator() {
                     {confirmDiscard === item.id && (
                       <div className="queue-discard" role="group" aria-label="Confirm discard">
                         <p>
-                          Discard {levelLabel(item)}? Its photo and saved details
-                          are deleted from this device. This cannot be undone.
+                          Discard {itemLabel(item)}? {discardConsequence(item)} This cannot be
+                          undone.
                         </p>
                         <Button
                           variant="danger"
@@ -273,14 +288,14 @@ export function QueueIndicator() {
                             void discard(item.id)
                           }}
                         >
-                          Discard report
+                          Discard {itemNoun(item)}
                         </Button>
                         <Button
                           variant="quiet"
                           size="compact"
                           onClick={() => setConfirmDiscard(null)}
                         >
-                          Keep report
+                          Keep {itemNoun(item)}
                         </Button>
                       </div>
                     )}
@@ -310,7 +325,7 @@ export function QueueIndicator() {
                     setConfirmClear(false)
                   }}
                 >
-                  Delete {items.length} saved report
+                  Delete {items.length} saved item
                   {items.length === 1 ? '' : 's'}
                 </Button>
                 <Button

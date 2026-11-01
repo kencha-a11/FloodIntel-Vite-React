@@ -32,10 +32,13 @@ describe('queue retention wiring', () => {
     const indicator = read('./QueueIndicator.tsx')
 
     expect(indicator).toContain('const [confirmDiscard, setConfirmDiscard]')
-    expect(indicator).toContain('Discard {levelLabel(item)}?')
-    expect(indicator).toContain('are deleted from this device. This cannot be undone.')
+    expect(indicator).toContain('Discard {itemLabel(item)}?')
+    expect(indicator).toContain('Its photo and saved details are deleted from this device.')
+    expect(indicator).toContain('Its saved details are deleted from this device.')
+    expect(indicator).toContain('This cannot be')
     expect(indicator).toContain('void discard(item.id)')
-    expect(indicator).toContain('Keep report')
+    expect(indicator).toContain('Discard {itemNoun(item)}')
+    expect(indicator).toContain('Keep {itemNoun(item)}')
   })
 
   it('shows retained failures beside the pending count', () => {

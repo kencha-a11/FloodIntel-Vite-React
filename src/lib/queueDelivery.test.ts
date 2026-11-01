@@ -94,7 +94,7 @@ describe('deliverQueuedItem', () => {
 
     const stored = store.get(item.id)
     expect(stored?.status).toBe('failed')
-    expect(stored?.photoBytes).toBe(8)
+    expect(stored?.kind === 'level' ? stored.photoBytes : null).toBe(8)
   })
 
   it('reports a sent report and leaves nothing queued', async () => {

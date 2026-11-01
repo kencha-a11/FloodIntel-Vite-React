@@ -9,6 +9,7 @@ import {
   RESCUE_PHOTO_BYTES,
 } from './floodLevels'
 import * as reportApi from './reportApi'
+import * as tagApi from './tagApi'
 import {
   listQueue,
   removeQueueItem,
@@ -17,6 +18,7 @@ import {
 import { isSyncWindowExpired, readLastAuthenticatedAt } from './session'
 import type { FloodReportInput } from '../types/report'
 import type {
+  LevelQueueItem,
   QueueItem,
   QueueItemPatch,
   QueueOutcome,
@@ -89,12 +91,15 @@ export function hasExhaustedRetries(attempts: number): boolean {
   return attempts >= MAX_AUTO_ATTEMPTS
 }
 
-export function terminalRetryMessage(cause: string | null): string {
+export function terminalRetryMessage(
+  cause: string | null,
+  noun: 'report' | 'access tag' = 'report',
+): string {
   const reason = cause?.trim() ?? ''
   const prefix =
     reason === '' ? '' : `${reason.replace(/\.$/, '')}. `
 
-  return `${prefix}Stopped retrying automatically after ${MAX_AUTO_ATTEMPTS} attempts. Retry when you are ready, or discard this report.`
+  return `${prefix}Stopped retrying automatically after ${MAX_AUTO_ATTEMPTS} attempts. Retry when you are ready, or discard this ${noun}.`
 }
 
 // A manual retry or a fresh sign-in starts a new automatic budget; without
@@ -148,6 +153,10 @@ async function sendItem(
     return reportApi.submitImpactReport(token, item.payload, item.id)
   }
 
+  if (item.kind === 'tag') {
+    return tagApi.submitTag(token, item.payload)
+  }
+
   const photo = new Blob([item.photo], { type: item.photoType })
 
   return reportApi.submitReport(
@@ -191,8 +200,18 @@ function outcome(
   }
 }
 
+function itemNoun(item: QueueItem): 'report' | 'access tag' {
+  return item.kind === 'tag' ? 'access tag' : 'report'
+}
+
+function sentMessage(item: QueueItem, id: number): string {
+  return item.kind === 'tag'
+    ? `Access tag #${id} recorded.`
+    : `Report #${id} sent.`
+}
+
 async function shrinkPhoto(
-  item: QueueItem,
+  item: LevelQueueItem,
   deps: SyncDeps,
 ): Promise<boolean> {
   if (item.photoBytes <= LAST_RESORT_PHOTO_BYTES) {
@@ -283,12 +302,12 @@ export async function runSync(
     const sentAt = deps.now()
 
     try {
-      const report = await deps.send(token, item)
+      const record = await deps.send(token, item)
 
       await deps.remove(item.id)
       summary.sent += 1
       summary.outcomes.push(
-        outcome(item, 'sent', `Report #${report.id} sent.`, report.id),
+        outcome(item, 'sent', sentMessage(item, record.id), record.id),
       )
       lastSentAt = deps.now()
       continue
@@ -299,14 +318,14 @@ export async function runSync(
       }
 
       if (err.status === 401) {
+        const message = `Sign in again to send this ${itemNoun(item)}.`
+
         await deps.update(item.id, {
           status: 'auth-required',
-          lastError: 'Sign in again to send this report.',
+          lastError: message,
         })
         summary.authRequired = true
-        summary.outcomes.push(
-          outcome(item, 'auth-required', 'Sign in again to send this report.'),
-        )
+        summary.outcomes.push(outcome(item, 'auth-required', message))
         stopped = true
         continue
       }
@@ -329,9 +348,11 @@ export async function runSync(
 
       // A proxy answers an oversized request with 413; the server names its own
       // size rejection on `photo_size`, so the same rescue covers both (D-108).
+      // Only a level item carries a photograph to shrink.
       if (
-        err.status === 413 ||
-        (err.status === 422 && err.errors.photo_size !== undefined)
+        item.kind === 'level' &&
+        (err.status === 413 ||
+          (err.status === 422 && err.errors.photo_size !== undefined))
       ) {
         const shrunk = await shrinkPhoto(item, deps).catch(() => false)
 
@@ -357,11 +378,15 @@ export async function runSync(
       }
 
       if (err.status === 422) {
-        // Both kinds send `reported_at`, and both are repaired the same way
-        // (D-107).
+        // Each kind names its own capture instant: a report sends `reported_at`
+        // and a tag sends `observed_at`; the repair itself is shared (D-107).
+        const clockField = item.kind === 'tag' ? 'observed_at' : 'reported_at'
+        const sentInstant =
+          item.kind === 'tag'
+            ? item.payload.observed_at
+            : item.payload.reported_at
         const clockRejected =
-          err.errors.reported_at !== undefined &&
-          item.payload.reported_at !== null
+          err.errors[clockField] !== undefined && sentInstant !== null
 
         if (clockRejected) {
           const alreadyRepaired =
@@ -370,16 +395,18 @@ export async function runSync(
           if (!alreadyRepaired && err.serverDate !== null) {
             const skewMs = sentAt - err.serverDate
             const message = clockRepairMessage(skewMs)
+            const corrected = correctedObservationTime(
+              item.observedAt,
+              skewMs,
+              err.serverDate,
+            )
+            const repairedPayload =
+              item.kind === 'tag'
+                ? { ...item.payload, observed_at: corrected }
+                : { ...item.payload, reported_at: corrected }
 
             await deps.update(item.id, {
-              payload: {
-                ...item.payload,
-                reported_at: correctedObservationTime(
-                  item.observedAt,
-                  skewMs,
-                  err.serverDate,
-                ),
-              },
+              payload: repairedPayload,
               clockSkewMs: skewMs,
               status: 'queued',
               nextAttemptAt: null,
@@ -493,7 +520,7 @@ async function stopRetrying(
   deps: SyncDeps,
   summary: SyncSummary,
 ): Promise<void> {
-  const message = terminalRetryMessage(cause)
+  const message = terminalRetryMessage(cause, itemNoun(item))
 
   await deps.update(item.id, {
     status: 'failed',

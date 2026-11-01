@@ -187,18 +187,14 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
       const id = newClientId()
 
-      // Impact reports carry no photo, so the queue record stores an empty
-      // buffer and counts zero bytes against the offline budget.
+      // Impact reports carry no photo, so the record counts no bytes against
+      // the offline budget.
       return deliverItem(
         {
           id,
           userId: user.id,
           kind: 'impact',
           payload: input.payload,
-          photo: new ArrayBuffer(0),
-          photoType: 'application/json',
-          photoName: '',
-          photoBytes: 0,
           status: 'queued',
           attempts: 0,
           lastError: null,

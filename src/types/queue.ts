@@ -1,6 +1,7 @@
+import type { AccessTagInput } from './accessTag'
 import type { AlertLevel, FloodLevel, FloodType } from './report'
 
-export type QueueItemKind = 'level' | 'impact'
+export type QueueItemKind = 'level' | 'impact' | 'tag'
 
 export type QueueItemStatus =
   | 'queued'
@@ -39,10 +40,6 @@ export type ReportPayload = LevelReportPayload | ImpactReportPayload
 interface QueueItemBase {
   id: string
   userId: number
-  photo: ArrayBuffer
-  photoType: string
-  photoName: string
-  photoBytes: number
   status: QueueItemStatus
   attempts: number
   lastError: string | null
@@ -52,7 +49,15 @@ interface QueueItemBase {
   clockSkewMs?: number | null
 }
 
-export interface LevelQueueItem extends QueueItemBase {
+/** Only a level report carries a photograph; impact reports and tags do not. */
+export interface PhotoQueueFields {
+  photo: ArrayBuffer
+  photoType: string
+  photoName: string
+  photoBytes: number
+}
+
+export interface LevelQueueItem extends QueueItemBase, PhotoQueueFields {
   kind: 'level'
   payload: LevelReportPayload
 }
@@ -62,11 +67,17 @@ export interface ImpactQueueItem extends QueueItemBase {
   payload: ImpactReportPayload
 }
 
-export type QueueItem = LevelQueueItem | ImpactQueueItem
-
-export type QueueItemPatch = Partial<QueueItemBase> & {
-  payload?: ReportPayload
+export interface TagQueueItem extends QueueItemBase {
+  kind: 'tag'
+  payload: AccessTagInput
 }
+
+export type QueueItem = LevelQueueItem | ImpactQueueItem | TagQueueItem
+
+export type QueueItemPatch = Partial<QueueItemBase> &
+  Partial<PhotoQueueFields> & {
+    payload?: ReportPayload | AccessTagInput
+  }
 
 export type QueueOutcomeStatus =
   | 'sent'

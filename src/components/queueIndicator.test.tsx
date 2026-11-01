@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { AuthContext, type AuthContextValue } from '../context/AuthContext'
 import { QueueContext, type QueueContextValue } from '../context/QueueContext'
 import type { User } from '../types/auth'
-import type { LevelQueueItem, QueueOutcome } from '../types/queue'
+import type { LevelQueueItem, QueueOutcome, TagQueueItem } from '../types/queue'
 import { QueueIndicator } from './QueueIndicator'
 
 /*
@@ -76,6 +76,31 @@ function levelItem(overrides: Partial<LevelQueueItem> = {}): LevelQueueItem {
   }
 }
 
+function tagItem(overrides: Partial<TagQueueItem> = {}): TagQueueItem {
+  return {
+    id: 'local-tag-1',
+    kind: 'tag',
+    userId: reporter.id,
+    status: 'queued',
+    attempts: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    createdAt: Date.now() - 60000,
+    observedAt: '2026-11-01T02:00:00Z',
+    payload: {
+      type: 'narrow_alley',
+      note: null,
+      landmark: 'Sitio Balite footpath',
+      latitude: 14.95,
+      longitude: 120.76,
+      gps_accuracy: 8,
+      address: null,
+      observed_at: '2026-11-01T02:00:00Z',
+    },
+    ...overrides,
+  }
+}
+
 function queue(overrides: Partial<QueueContextValue> = {}): QueueContextValue {
   return {
     items: [],
@@ -141,12 +166,18 @@ describe('queue indicator announcements', () => {
       }),
     )
 
-    expect(html).toContain('2 saved reports waiting to send. 1 not sent.')
+    expect(html).toContain('2 saved items waiting to send. 1 not sent.')
     expect(html).toMatch(/class="visually-hidden" role="status" aria-live="polite"/)
   })
 
   it('says nothing waits when the queue is empty', () => {
-    expect(render(queue())).toContain('No saved reports waiting to send.')
+    expect(render(queue())).toContain('No saved items waiting to send.')
+  })
+
+  it('counts a saved access tag as an item', () => {
+    const html = render(queue({ items: [tagItem()], pendingCount: 1 }))
+
+    expect(html).toContain('1 saved item waiting to send.')
   })
 })
 
@@ -176,26 +207,26 @@ describe('queue indicator trigger', () => {
 })
 
 describe('queue indicator session banners', () => {
-  it('names the reason and the reports a fresh sign-in would send', () => {
+  it('names the reason and the items a fresh sign-in would send', () => {
     const html = render(queue({ authStale: true, pendingCount: 3 }))
 
     expect(html).toContain(
-      'Saved reports need a fresh sign-in (12-hour limit). Sign in again to send 3 saved reports.',
+      'Saved items need a fresh sign-in (12-hour limit). Sign in again to send 3 saved items.',
     )
     expect(html).toContain('role="alert"')
     expect(html).toContain('Sign in again')
   })
 
-  it('uses the singular for one saved report and asks to continue when none wait', () => {
+  it('uses the singular for one saved item and asks to continue when none wait', () => {
     expect(render(queue({ authStale: true, pendingCount: 1 }))).toContain(
-      'Sign in again to send 1 saved report.',
+      'Sign in again to send 1 saved item.',
     )
     expect(render(queue({ authRequired: true, pendingCount: 0 }))).toContain(
       'Your session ended. Sign in again to continue.',
     )
   })
 
-  it('explains a browser that cannot keep reports between sessions', () => {
+  it('explains a browser that cannot keep items between sessions', () => {
     const html = render(queue({ storageAvailable: false }))
 
     expect(html).toContain('Offline storage is unavailable in this browser.')
@@ -235,12 +266,19 @@ describe('queue panel states', () => {
 
   it('waits for the first read before it claims the queue is empty', () => {
     expect(indicator).toContain('!loaded ? (')
-    expect(indicator).toContain('<Spinner label="Checking saved reports…" />')
-    expect(indicator).toContain('A report captured without a connection stays here until the centre receives it.')
+    expect(indicator).toContain('<Spinner label="Checking saved items…" />')
+    expect(indicator).toContain('A report or access tag captured without a connection stays here until the centre receives it.')
   })
 
   it('explains the wait while offline and offers no futile retry', () => {
-    expect(indicator).toContain('You are offline. Saved reports will send when the connection')
+    expect(indicator).toContain('You are offline. Saved items will send when the connection')
     expect(indicator).toContain('disabled={items.length === 0 || !online}')
+  })
+
+  it('names an access tag and prints no photo size for it', () => {
+    expect(indicator).toContain("return 'Access tag'")
+    expect(indicator).toContain("item.kind === 'level' &&")
+    expect(indicator).toContain('` · ${formatSize(item.photoBytes)}`')
+    expect(indicator).toContain("item.kind === 'tag' ? 'tag' : 'report'")
   })
 })

@@ -1,25 +1,31 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_AUTO_ATTEMPTS,
   backoffDelay,
   correctedObservationTime,
+  createDefaultDeps,
   hasExhaustedRetries,
   restartQueueItemPatch,
   runSync,
   terminalRetryMessage,
 } from './sync'
 import type { SyncDeps } from './sync'
-import { AuthApiError } from './http'
+import { API_BASE_URL, AuthApiError } from './http'
 import { LAST_RESORT_PHOTO_BYTES } from './floodLevels'
 import { AUTH_WINDOW_MS } from './session'
 import type {
   ImpactQueueItem,
   LevelQueueItem,
   QueueItem,
+  TagQueueItem,
 } from '../types/queue'
 import type { FloodReport } from '../types/report'
 
 const NOW = 1_700_000_000_000
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 function makeItem(overrides: Partial<LevelQueueItem> = {}): LevelQueueItem {
   return {
@@ -62,10 +68,31 @@ function makeImpactItem(
       remarks: null,
       reported_at: '2026-10-21T02:00:00.000Z',
     },
-    photo: new ArrayBuffer(0),
-    photoType: 'application/json',
-    photoName: '',
-    photoBytes: 0,
+    status: 'queued',
+    attempts: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    createdAt: 1,
+    observedAt: '2026-10-21T02:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function makeTagItem(overrides: Partial<TagQueueItem> = {}): TagQueueItem {
+  return {
+    id: 'item-1',
+    userId: 1,
+    kind: 'tag',
+    payload: {
+      type: 'narrow_alley',
+      note: null,
+      landmark: 'Sitio Balite footpath',
+      latitude: 14.9512345,
+      longitude: 120.8312345,
+      gps_accuracy: 6.5,
+      address: null,
+      observed_at: '2026-10-21T02:00:00.000Z',
+    },
     status: 'queued',
     attempts: 0,
     lastError: null,
@@ -300,11 +327,13 @@ describe('runSync', () => {
     })
     const first = await runSync(1, harness.deps)
     const repaired = harness.store.get('item-1')
+    const repairedPayload =
+      repaired?.kind === 'level' ? repaired.payload : null
 
     expect(calls).toBe(1)
     expect(first.sent).toBe(0)
     expect(first.outcomes[0].status).toBe('queued')
-    expect(repaired?.payload.reported_at).toBe(correctedAt)
+    expect(repairedPayload?.reported_at).toBe(correctedAt)
     expect(repaired?.observedAt).toBe(observedAt)
     expect(repaired?.clockSkewMs).toBe(SKEW_MS)
     expect(repaired?.status).toBe('queued')
@@ -337,7 +366,7 @@ describe('runSync', () => {
     const item = harness.store.get('item-1')
 
     expect(item?.status).toBe('failed')
-    expect(item?.photoBytes).toBe(8)
+    expect(item?.kind === 'level' ? item.photoBytes : null).toBe(8)
     expect(item?.lastError).toContain('corrected observation time was rejected')
     expect(summary.failed).toBe(1)
     expect(summary.remaining).toBe(1)
@@ -356,7 +385,9 @@ describe('runSync', () => {
     const summary = await runSync(1, harness.deps)
     const item = harness.store.get('item-1')
 
-    expect(item?.payload.reported_at).toBe('2026-10-21T02:00:00.000Z')
+    expect(
+      item?.kind === 'level' ? item.payload.reported_at : null,
+    ).toBe('2026-10-21T02:00:00.000Z')
     expect(item?.status).toBe('failed')
     expect(item?.lastError).toContain('device clock cannot be corrected')
     expect(summary.failed).toBe(1)
@@ -395,12 +426,14 @@ describe('runSync', () => {
 
     const first = await runSync(1, harness.deps)
     const repaired = harness.store.get('item-1')
+    const repairedPayload =
+      repaired?.kind === 'impact' ? repaired.payload : null
 
     expect(calls).toBe(1)
     expect(first.sent).toBe(0)
     expect(first.outcomes[0].status).toBe('queued')
     expect(repaired?.kind).toBe('impact')
-    expect(repaired?.payload.reported_at).toBe(correctedAt)
+    expect(repairedPayload?.reported_at).toBe(correctedAt)
     expect(repaired?.clockSkewMs).toBe(SKEW_MS)
     expect(repaired?.status).toBe('queued')
 
@@ -409,6 +442,171 @@ describe('runSync', () => {
     expect(calls).toBe(2)
     expect(second.sent).toBe(1)
     expect(harness.store.size).toBe(0)
+  })
+
+  it('sends a queued tag and names it as recorded, not as a report', async () => {
+    const harness = createHarness([makeTagItem()], {
+      send: async () => ({ id: 42 }),
+    })
+    const summary = await runSync(1, harness.deps)
+
+    expect(summary.sent).toBe(1)
+    expect(summary.remaining).toBe(0)
+    expect(harness.store.size).toBe(0)
+    expect(summary.outcomes[0]).toMatchObject({
+      status: 'sent',
+      message: 'Access tag #42 recorded.',
+      reportId: 42,
+    })
+  })
+
+  it('posts a tag as JSON through the default sender, with no photo and no key', async () => {
+    let url = ''
+    let init: RequestInit = {}
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string, options: RequestInit = {}) => {
+        url = path
+        init = options
+
+        return new Response(JSON.stringify({ data: { id: 12 } }), {
+          status: 201,
+        })
+      }),
+    )
+
+    const harness = createHarness([makeTagItem()], {
+      send: createDefaultDeps().send,
+    })
+    const summary = await runSync(1, harness.deps)
+
+    expect(url).toBe(`${API_BASE_URL}/access-tags`)
+    expect(init.method).toBe('POST')
+    expect(new Headers(init.headers).get('Content-Type')).toBe(
+      'application/json',
+    )
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer token')
+
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>
+
+    expect(body.type).toBe('narrow_alley')
+    expect(body.observed_at).toBe('2026-10-21T02:00:00.000Z')
+    expect(body.landmark).toBe('Sitio Balite footpath')
+    // A duplicate tag is an accepted risk, so the queue sends no key (D-126).
+    expect(body).not.toHaveProperty('client_uuid')
+    expect(body).not.toHaveProperty('photo')
+    expect(summary.outcomes[0].message).toBe('Access tag #12 recorded.')
+    expect(harness.store.size).toBe(0)
+  })
+
+  it('repairs a tag whose capture instant is ahead of the server', async () => {
+    const SKEW_MS = 60 * 60_000
+    const serverNow = NOW - SKEW_MS
+    const observedAt = new Date(NOW - 60_000).toISOString()
+    const correctedAt = new Date(serverNow - 60_000).toISOString()
+    let calls = 0
+
+    const harness = createHarness([makeTagItem({ observedAt })], {
+      send: async (_token, item) => {
+        calls += 1
+
+        if (item.kind !== 'tag') {
+          throw new Error('expected a tag item')
+        }
+
+        if (Date.parse(item.payload.observed_at) > serverNow) {
+          throw new AuthApiError(
+            'The observed at field must not be in the future.',
+            422,
+            { observed_at: ['The observed at field must not be in the future.'] },
+            null,
+            serverNow,
+          )
+        }
+
+        return { id: 12 }
+      },
+    })
+
+    const first = await runSync(1, harness.deps)
+    const repaired = harness.store.get('item-1')
+    const repairedPayload =
+      repaired?.kind === 'tag' ? repaired.payload : null
+
+    expect(calls).toBe(1)
+    expect(first.sent).toBe(0)
+    expect(first.outcomes[0].status).toBe('queued')
+    expect(repairedPayload?.observed_at).toBe(correctedAt)
+    expect(repaired?.observedAt).toBe(observedAt)
+    expect(repaired?.clockSkewMs).toBe(SKEW_MS)
+    expect(repaired?.status).toBe('queued')
+
+    const second = await runSync(1, harness.deps)
+
+    expect(calls).toBe(2)
+    expect(second.sent).toBe(1)
+    expect(harness.store.size).toBe(0)
+  })
+
+  it('does not shrink anything when a tag is rejected as too large', async () => {
+    let compressions = 0
+    const harness = createHarness([makeTagItem()], {
+      send: async () => {
+        throw new AuthApiError('Too large.', 413)
+      },
+      compressPhoto: async () => {
+        compressions += 1
+        return shrunkPhoto()
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(compressions).toBe(0)
+    expect(item?.status).toBe('failed')
+    expect(item?.lastError).toBe('Too large.')
+    expect(summary.failed).toBe(1)
+  })
+
+  it('does not read a photo-size rejection as a tag problem', async () => {
+    let compressions = 0
+    const harness = createHarness([makeTagItem()], {
+      send: async () => {
+        throw new AuthApiError(
+          'The photo is larger than the 5 MB upload limit.',
+          422,
+          { photo_size: ['The photo is larger than the 5 MB upload limit.'] },
+        )
+      },
+      compressPhoto: async () => {
+        compressions += 1
+        return shrunkPhoto()
+      },
+    })
+
+    await runSync(1, harness.deps)
+
+    expect(compressions).toBe(0)
+    expect(harness.store.get('item-1')?.status).toBe('failed')
+  })
+
+  it('stops a tag at the ceiling and names the tag in the terminal message', async () => {
+    const harness = createHarness([makeTagItem({ attempts: 7 })], {
+      send: async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('failed')
+    expect(item?.attempts).toBe(MAX_AUTO_ATTEMPTS)
+    expect(item?.lastError).toBe(
+      'Failed to fetch. Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this access tag.',
+    )
+    expect(summary.failed).toBe(1)
+    expect(summary.remaining).toBe(1)
   })
 
   it('clamps a corrected instant to the server clock', () => {
@@ -452,7 +650,7 @@ describe('runSync', () => {
     expect(compressions).toBe(0)
     expect(item?.status).toBe('failed')
     expect(item?.lastError).toBe('Invalid photo.')
-    expect(item?.photoBytes).toBe(900_000)
+    expect(item?.kind === 'level' ? item.photoBytes : null).toBe(900_000)
     expect(summary.failed).toBe(1)
     expect(summary.remaining).toBe(1)
   })
@@ -479,7 +677,7 @@ describe('runSync', () => {
     const item = harness.store.get('item-1')
 
     expect(item?.status).toBe('queued')
-    expect(item?.photoBytes).toBe(64)
+    expect(item?.kind === 'level' ? item.photoBytes : null).toBe(64)
     expect(item?.nextAttemptAt).toBeNull()
     expect(summary.outcomes[0]).toMatchObject({
       status: 'queued',
@@ -500,8 +698,10 @@ describe('runSync', () => {
 
     await runSync(1, harness.deps)
 
-    expect(harness.store.get('item-1')?.photoBytes).toBe(64)
-    expect(harness.store.get('item-1')?.status).toBe('queued')
+    const shrunk = harness.store.get('item-1')
+
+    expect(shrunk?.status).toBe('queued')
+    expect(shrunk?.kind === 'level' ? shrunk.photoBytes : null).toBe(64)
   })
 
   it('stops shrinking at the last-resort size and names the next action', async () => {
@@ -530,7 +730,9 @@ describe('runSync', () => {
 
     expect(compressions).toBe(0)
     expect(item?.status).toBe('failed')
-    expect(item?.photoBytes).toBe(LAST_RESORT_PHOTO_BYTES)
+    expect(item?.kind === 'level' ? item.photoBytes : null).toBe(
+      LAST_RESORT_PHOTO_BYTES,
+    )
     expect(item?.lastError).toBe(
       'The photo is too large to send and cannot be reduced further. Take a new photo.',
     )
@@ -640,7 +842,7 @@ describe('runSync', () => {
     expect(item?.status).toBe('failed')
     expect(item?.attempts).toBe(MAX_AUTO_ATTEMPTS)
     expect(item?.nextAttemptAt).toBeNull()
-    expect(item?.photoBytes).toBe(8)
+    expect(item?.kind === 'level' ? item.photoBytes : null).toBe(8)
     expect(item?.kind === 'level' ? item.payload.flood_level : null).toBe(
       'knee',
     )
@@ -713,6 +915,9 @@ describe('retry budget helpers', () => {
     )
     expect(terminalRetryMessage(null)).toBe(
       'Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this report.',
+    )
+    expect(terminalRetryMessage('Failed to fetch', 'access tag')).toBe(
+      'Failed to fetch. Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this access tag.',
     )
   })
 
