@@ -648,6 +648,54 @@
   text-align: left;
 }
 
+.deadline-bar {
+  margin: 0 0 14px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  text-align: left;
+
+  .deadline-bar-countdown {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .deadline-bar-meta {
+    margin: 2px 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
+
+  .deadline-bar-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .deadline-bar-item {
+    display: inline-flex;
+    gap: 6px;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .deadline-bar-item.is-pending {
+    color: var(--color-text);
+    font-weight: 600;
+  }
+
+  .deadline-bar-count {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 .filter-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

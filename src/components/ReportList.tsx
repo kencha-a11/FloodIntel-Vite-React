@@ -4,6 +4,7 @@ import { AuthApiError, getStoredToken } from '../lib/authApi'
 import { FLOOD_LEVELS } from '../lib/floodLevels'
 import * as reportApi from '../lib/reportApi'
 import {
+  ALERT_LEVEL_ORDER,
   LEGACY_DEPTH_LABEL,
   REPORT_STATUSES,
   alertTierLabel,
@@ -17,6 +18,7 @@ import { reportRealtimeLatency } from '../lib/realtimeApi'
 import { feedPollEnabled } from '../lib/feedPoll'
 import { useFeedPoll } from '../lib/useFeedPoll'
 import { useRealtimeFeed } from '../lib/useRealtimeFeed'
+import { DeadlineBar } from './DeadlineBar'
 import { FreshnessBar } from './FreshnessBar'
 import { RealtimeLatencySummary } from './RealtimeLatencySummary'
 import {
@@ -31,6 +33,7 @@ import {
 } from './ui'
 import type { RealtimeUpdate } from '../types/realtime'
 import type {
+  AlertLevel,
   Barangay,
   FloodLevel,
   FloodReport,
@@ -210,6 +213,8 @@ export function ReportList({
     <div className="report-list">
       <h2>{canFilter ? 'Flood report queue' : 'Flood reports'}</h2>
 
+      {canFilter && <DeadlineBar />}
+
       <FreshnessBar
         lastSuccessAt={lastSuccessAt}
         live={realtimeStatus === 'live'}
@@ -232,6 +237,22 @@ export function ReportList({
             {REPORT_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {reportStatusLabel(status)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field id="filter-alert" label="Alert level">
+          <Select
+            value={filters.alert_level}
+            onChange={(event) =>
+              updateFilter('alert_level', event.target.value as AlertLevel | '')
+            }
+          >
+            <option value="">All alert levels</option>
+            {ALERT_LEVEL_ORDER.map((level) => (
+              <option key={level} value={level}>
+                {alertTierLabel(level)}
               </option>
             ))}
           </Select>
