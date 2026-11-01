@@ -47,6 +47,7 @@ import { affectsValidatedFeed } from '../lib/realtimeFeed'
 import { useFeedPoll } from '../lib/useFeedPoll'
 import { useRealtimeFeed } from '../lib/useRealtimeFeed'
 import { FreshnessBar } from './FreshnessBar'
+import { MapReportList } from './MapReportList'
 import { Button } from './ui'
 import {
   ALERT_LEVEL_ORDER,
@@ -813,6 +814,8 @@ export default function MapView({ canViewValidatedFeed }: { canViewValidatedFeed
         (CC BY-IGO). Map data: © OpenStreetMap contributors (ODbL). Elevation:
         Copernicus DEM (COPDEM-30); terrain bands are derived.
       </p>
+
+      {layerStatus === 'ready' && <MapReportList rows={rows} meta={feedMeta} />}
     </div>
   )
 }
