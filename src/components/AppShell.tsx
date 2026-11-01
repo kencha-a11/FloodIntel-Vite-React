@@ -2,13 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { Button } from './ui'
 import type { User } from '../types/auth'
 
-export type AppView =
-  | 'capture'
-  | 'impact'
-  | 'reports'
-  | 'detail'
-  | 'map'
-  | 'tokens'
+export type AppView = 'capture' | 'impact' | 'reports' | 'map' | 'tokens'
 
 interface AppShellProps {
   user: User
@@ -57,9 +51,6 @@ export function AppShell({
     mainRef.current?.focus({ preventScroll: true })
   }, [activeView])
 
-  // The detail view belongs to the review surface, so the queue item stays current.
-  const current = activeView === 'detail' ? 'reports' : activeView
-
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -88,8 +79,8 @@ export function AppShell({
       <nav className="app-shell-nav" aria-label="Main sections">
         {canSubmit && (
           <Button
-            variant={navVariant(current === 'capture')}
-            aria-current={currentPage(current === 'capture')}
+            variant={navVariant(activeView === 'capture')}
+            aria-current={currentPage(activeView === 'capture')}
             onClick={() => onNavigate('capture')}
           >
             New report
@@ -98,8 +89,8 @@ export function AppShell({
 
         {canViewImpact && (
           <Button
-            variant={navVariant(current === 'impact')}
-            aria-current={currentPage(current === 'impact')}
+            variant={navVariant(activeView === 'impact')}
+            aria-current={currentPage(activeView === 'impact')}
             onClick={() => onNavigate('impact')}
           >
             Impact
@@ -107,8 +98,8 @@ export function AppShell({
         )}
 
         <Button
-          variant={navVariant(current === 'reports')}
-          aria-current={currentPage(current === 'reports')}
+          variant={navVariant(activeView === 'reports')}
+          aria-current={currentPage(activeView === 'reports')}
           onClick={() => onNavigate('reports')}
         >
           {canReview ? 'Review queue' : 'Reports'}
@@ -116,8 +107,8 @@ export function AppShell({
 
         {canViewMap && (
           <Button
-            variant={navVariant(current === 'map')}
-            aria-current={currentPage(current === 'map')}
+            variant={navVariant(activeView === 'map')}
+            aria-current={currentPage(activeView === 'map')}
             onClick={() => onNavigate('map')}
           >
             Map
@@ -126,8 +117,8 @@ export function AppShell({
 
         {canManageTokens && (
           <Button
-            variant={navVariant(current === 'tokens')}
-            aria-current={currentPage(current === 'tokens')}
+            variant={navVariant(activeView === 'tokens')}
+            aria-current={currentPage(activeView === 'tokens')}
             onClick={() => onNavigate('tokens')}
           >
             API tokens

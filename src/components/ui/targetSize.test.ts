@@ -15,11 +15,13 @@ const sheets: Record<string, string> = {
 
 const TARGET_MIN = 44
 
-/* Containers moved focus to programmatically (UI-03); they are not keyboard controls. */
+/* Containers moved focus to programmatically (UI-03, VALID-13); they are not keyboard controls. */
 const FOCUSABLE_CONTAINERS = [
   '.auth-shell-main',
   '.app-shell-main',
   '.ui-dialog',
+  '.review-workspace-queue',
+  '.review-workspace-detail',
 ]
 
 function blockAfter(css: string, marker: string) {

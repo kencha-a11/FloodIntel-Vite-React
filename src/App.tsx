@@ -7,9 +7,8 @@ import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
 import { FloodReportForm } from './components/FloodReportForm'
 import { ImpactReportsView } from './components/ImpactReportsView'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
-import { ReportDetail } from './components/ReportDetail'
-import { ReportList } from './components/ReportList'
 import { ResetPasswordForm } from './components/ResetPasswordForm'
+import { ReviewWorkspace } from './components/ReviewWorkspace'
 import { TokenManager } from './components/TokenManager'
 import { LoginForm } from './components/LoginForm'
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
@@ -137,19 +136,11 @@ function App() {
       )}
 
       {activeView === 'reports' && (
-        <ReportList
+        <ReviewWorkspace
           canFilter={canReview}
-          onSelect={(reportId) => {
-            setSelectedReportId(reportId)
-            setView('detail')
-          }}
-        />
-      )}
-
-      {activeView === 'detail' && selectedReportId !== null && (
-        <ReportDetail
-          reportId={selectedReportId}
-          onBack={() => setView('reports')}
+          selectedReportId={selectedReportId}
+          onSelect={setSelectedReportId}
+          onClear={() => setSelectedReportId(null)}
         />
       )}
 

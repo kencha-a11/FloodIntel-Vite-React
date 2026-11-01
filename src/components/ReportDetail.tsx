@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
+import { NOT_RECORDED, formatInstantWithAge } from '../lib/dateTime'
 import * as reportApi from '../lib/reportApi'
+import {
+  DECISION_CANCEL_LABEL,
+  decisionCopy,
+} from '../lib/reviewDecision'
+import type { ReviewDecision } from '../lib/reviewDecision'
 import {
   availableReportActions,
   overrideTargets,
@@ -23,6 +29,7 @@ import {
   Badge,
   Button,
   Card,
+  Dialog,
   EmptyState,
   Field,
   Select,
@@ -62,7 +69,9 @@ export function ReportDetail({
   const [overrideError, setOverrideError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [serverFieldErrors, setServerFieldErrors] = useState<FieldErrors>({})
-  const [isRejecting, setIsRejecting] = useState(false)
+  const [pendingDecision, setPendingDecision] = useState<ReviewDecision | null>(
+    null,
+  )
   const [isActing, setIsActing] = useState(false)
 
   useEffect(() => {
@@ -149,25 +158,68 @@ export function ReportDetail({
     }
   }
 
-  async function handleValidate(): Promise<void> {
-    if (
-      !window.confirm(
-        `Validate report #${reportId}? Validated reports are the only ones the heatmap and situational reports use.`,
-      )
-    ) {
+  function closeDecision(): void {
+    if (isActing) {
       return
     }
 
-    const ok = await runDecision((token) =>
-      reportApi.validateReport(token, reportId),
-    )
+    setPendingDecision(null)
+  }
 
-    if (ok) {
-      setActionError(null)
+  async function confirmDecision(): Promise<void> {
+    const decision = pendingDecision
+
+    if (decision === null) {
+      return
+    }
+
+    const ok = await runDecision((token) => {
+      switch (decision.kind) {
+        case 'validate':
+          return reportApi.validateReport(token, decision.reportId)
+        case 'return':
+          return reportApi.returnReport(token, decision.reportId, decision.reason)
+        case 'reject':
+          return reportApi.rejectReport(token, decision.reportId, decision.reason)
+        case 'override':
+          return reportApi.overrideReport(
+            token,
+            decision.reportId,
+            decision.target,
+            decision.reason,
+          )
+      }
+    })
+
+    setPendingDecision(null)
+
+    if (!ok) {
+      return
+    }
+
+    if (decision.kind === 'return') {
+      setReturnReason('')
+      setReturnError(null)
+    }
+
+    if (decision.kind === 'reject') {
+      setRejectionReason('')
+      setRejectionError(null)
+    }
+
+    if (decision.kind === 'override') {
+      setOverrideReason('')
+      setOverrideTarget('')
+      setOverrideError(null)
     }
   }
 
-  async function handleReturn(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleValidate(): void {
+    setActionError(null)
+    setPendingDecision({ kind: 'validate', reportId })
+  }
+
+  function handleReturn(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
 
     if (returnReason.trim() === '') {
@@ -175,28 +227,16 @@ export function ReportDetail({
       return
     }
 
-    if (
-      !window.confirm(
-        `Return report #${reportId} for correction? The reporter will see your reason.`,
-      )
-    ) {
-      return
-    }
-
     setReturnError(null)
-
-    const ok = await runDecision((token) =>
-      reportApi.returnReport(token, reportId, returnReason.trim()),
-    )
-
-    if (ok) {
-      setReturnReason('')
-    }
+    setActionError(null)
+    setPendingDecision({
+      kind: 'return',
+      reportId,
+      reason: returnReason.trim(),
+    })
   }
 
-  async function handleOverride(
-    event: FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  function handleOverride(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
 
     if (overrideTarget === '') {
@@ -209,71 +249,36 @@ export function ReportDetail({
       return
     }
 
-    const target = overrideTarget
-    const current = report === null ? 'decided' : reportStatusLabel(report.status).toLowerCase()
-
-    if (
-      !window.confirm(
-        `Override this ${current} report to ${reportStatusLabel(target)}? The change is recorded in the audit log.`,
-      )
-    ) {
+    if (report === null) {
       return
     }
 
     setOverrideError(null)
-
-    const ok = await runDecision((token) =>
-      reportApi.overrideReport(token, reportId, target, overrideReason.trim()),
-    )
-
-    if (ok) {
-      setOverrideReason('')
-      setOverrideTarget('')
-    }
+    setActionError(null)
+    setPendingDecision({
+      kind: 'override',
+      reportId,
+      from: report.status,
+      target: overrideTarget,
+      reason: overrideReason.trim(),
+    })
   }
 
-  async function handleReject(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function handleReject(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-
-    const token = getStoredToken()
-
-    if (token === null || isRejecting) {
-      return
-    }
 
     if (rejectionReason.trim() === '') {
       setRejectionError('A reason is required to reject a report.')
       return
     }
 
-    setIsRejecting(true)
     setRejectionError(null)
-    setServerFieldErrors({})
-
-    try {
-      const response = await reportApi.rejectReport(
-        token,
-        reportId,
-        rejectionReason.trim(),
-      )
-
-      setReport(response)
-      setRejectionReason('')
-    } catch (err) {
-      if (err instanceof AuthApiError) {
-        if (err.status === 401) {
-          await logout()
-          return
-        }
-
-        setRejectionError(err.message)
-        setServerFieldErrors(err.errors)
-      } else {
-        setRejectionError('Unable to connect to the server.')
-      }
-    } finally {
-      setIsRejecting(false)
-    }
+    setActionError(null)
+    setPendingDecision({
+      kind: 'reject',
+      reportId,
+      reason: rejectionReason.trim(),
+    })
   }
 
   const actions =
@@ -389,7 +394,23 @@ export function ReportDetail({
             </div>
             <div>
               <dt>Observed at</dt>
-              <dd>{new Date(report.reported_at).toLocaleString()}</dd>
+              <dd>
+                {report.reported_at === null ? (
+                  NOT_RECORDED
+                ) : (
+                  <time dateTime={report.reported_at}>
+                    {formatInstantWithAge(report.reported_at)}
+                  </time>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Received at</dt>
+              <dd>
+                <time dateTime={report.created_at}>
+                  {formatInstantWithAge(report.created_at)}
+                </time>
+              </dd>
             </div>
             <div>
               <dt>Notes</dt>
@@ -422,7 +443,9 @@ export function ReportDetail({
                           ` (${change.actor_role_label})`}
                       </p>
                       <p className="report-row-meta">
-                        {new Date(change.created_at).toLocaleString()}
+                        <time dateTime={change.created_at}>
+                          {formatInstantWithAge(change.created_at)}
+                        </time>
                         {change.reason !== null && ` — ${change.reason}`}
                       </p>
                     </li>
@@ -438,20 +461,13 @@ export function ReportDetail({
               <h3>Validation decision</h3>
 
               {actions.canValidate && (
-                <Button
-                  disabled={isActing}
-                  onClick={() => void handleValidate()}
-                >
-                  {isActing ? 'Validating…' : 'Validate report'}
+                <Button disabled={isActing} onClick={handleValidate}>
+                  Validate report
                 </Button>
               )}
 
               {actions.canReturn && (
-                <form
-                  className="ui-form"
-                  onSubmit={(event) => void handleReturn(event)}
-                  noValidate
-                >
+                <form className="ui-form" onSubmit={handleReturn} noValidate>
                   <h4>Return for correction</h4>
 
                   <Field
@@ -471,7 +487,7 @@ export function ReportDetail({
                   </Field>
 
                   <Button type="submit" disabled={isActing}>
-                    {isActing ? 'Returning…' : 'Return for correction'}
+                    Return for correction
                   </Button>
                 </form>
               )}
@@ -479,11 +495,7 @@ export function ReportDetail({
           )}
 
           {actions?.canOverride && (
-            <form
-              className="ui-form"
-              onSubmit={(event) => void handleOverride(event)}
-              noValidate
-            >
+            <form className="ui-form" onSubmit={handleOverride} noValidate>
               <h3>Override the decision</h3>
               <p className="muted">
                 Overriding records a new, reasoned entry in the status history;
@@ -528,17 +540,13 @@ export function ReportDetail({
               </Field>
 
               <Button type="submit" disabled={isActing}>
-                {isActing ? 'Overriding…' : 'Override decision'}
+                Override decision
               </Button>
             </form>
           )}
 
           {actions?.canReject && (
-            <form
-              className="ui-form"
-              onSubmit={(event) => void handleReject(event)}
-              noValidate
-            >
+            <form className="ui-form" onSubmit={handleReject} noValidate>
               <h3>Reject this report</h3>
 
               {rejectionError && <Alert tone="danger">{rejectionError}</Alert>}
@@ -556,13 +564,59 @@ export function ReportDetail({
                 />
               </Field>
 
-              <Button type="submit" variant="danger" disabled={isRejecting}>
-                {isRejecting ? 'Rejecting…' : 'Reject report'}
+              <Button type="submit" variant="danger" disabled={isActing}>
+                Reject report
               </Button>
             </form>
           )}
         </>
       )}
+
+      <DecisionDialog
+        decision={pendingDecision}
+        busy={isActing}
+        onCancel={closeDecision}
+        onConfirm={() => void confirmDecision()}
+      />
     </div>
+  )
+}
+
+function DecisionDialog({
+  decision,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  decision: ReviewDecision | null
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const copy = decision === null ? null : decisionCopy(decision)
+
+  return (
+    <Dialog
+      open={copy !== null}
+      title={copy?.title ?? ''}
+      onClose={onCancel}
+      footer={
+        <>
+          <Button variant="secondary" disabled={busy} onClick={onCancel}>
+            {DECISION_CANCEL_LABEL}
+          </Button>
+          <Button
+            variant={decision?.kind === 'validate' ? 'primary' : 'danger'}
+            disabled={busy}
+            aria-busy={busy}
+            onClick={onConfirm}
+          >
+            {busy ? 'Recording…' : copy?.confirm}
+          </Button>
+        </>
+      }
+    >
+      <p>{copy?.body}</p>
+    </Dialog>
   )
 }

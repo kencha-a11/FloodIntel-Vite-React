@@ -63,7 +63,7 @@ export interface FloodReport {
   address: string | null
   photo_url: string
   notes: string | null
-  reported_at: string
+  reported_at: string | null
   status: FloodReportStatus
   status_label: string
   status_changes?: FloodReportStatusChange[]

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/useAuth'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
+import { NOT_RECORDED, formatInstantWithAge } from '../lib/dateTime'
 import { FLOOD_LEVELS } from '../lib/floodLevels'
 import * as reportApi from '../lib/reportApi'
 import {
@@ -67,15 +68,32 @@ function endOfDay(value: string): string {
   return value === '' ? '' : `${value}T23:59:59`
 }
 
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString()
+function InstantRow({
+  label,
+  value,
+}: {
+  label: string
+  value: string | null
+}) {
+  return (
+    <p className="report-row-meta">
+      {label}{' '}
+      {value === null ? (
+        NOT_RECORDED
+      ) : (
+        <time dateTime={value}>{formatInstantWithAge(value)}</time>
+      )}
+    </p>
+  )
 }
 
 export function ReportList({
   canFilter,
+  selectedReportId,
   onSelect,
 }: {
   canFilter: boolean
+  selectedReportId: number | null
   onSelect: (reportId: number) => void
 }) {
   const { logout } = useAuth()
@@ -395,7 +413,12 @@ export function ReportList({
             <li key={report.id}>
               <button
                 type="button"
-                className="report-row"
+                className={
+                  report.id === selectedReportId
+                    ? 'report-row report-row-selected'
+                    : 'report-row'
+                }
+                aria-current={report.id === selectedReportId ? 'true' : undefined}
                 onClick={() => onSelect(report.id)}
               >
                 <img
@@ -428,9 +451,8 @@ export function ReportList({
                     {report.barangay.name} · {report.user.first_name}{' '}
                     {report.user.last_name}
                   </p>
-                  <p className="report-row-meta">
-                    Observed {formatDateTime(report.reported_at)}
-                  </p>
+                  <InstantRow label="Observed" value={report.reported_at} />
+                  <InstantRow label="Received" value={report.created_at} />
                   {report.notes !== null && report.notes !== '' && (
                     <p className="report-row-notes">{report.notes}</p>
                   )}

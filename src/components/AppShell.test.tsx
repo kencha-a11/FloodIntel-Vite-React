@@ -76,13 +76,6 @@ describe('AppShell', () => {
     expect(html).toContain('ui-button--primary" aria-current="page">Review queue')
   })
 
-  it('keeps the review queue current while a report is open', () => {
-    const html = render({ activeView: 'detail' })
-
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
-    expect(html).toContain('aria-current="page">Review queue</button>')
-  })
-
   it('hides sections the account cannot reach and renames the list', () => {
     const html = render({
       canSubmit: false,
