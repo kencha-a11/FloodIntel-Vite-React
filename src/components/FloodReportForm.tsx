@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
 import { CameraCapture } from './CameraCapture'
@@ -12,6 +12,10 @@ import { getStoredToken } from '../lib/http'
 import { reverseGeocode } from '../lib/geocode'
 import type { FieldErrors } from '../types/auth'
 import type { AlertLevel, FloodType } from '../types/report'
+
+// The pin map is MapLibre: loaded only once a fix exists, so a reporter never
+// downloads the map stack before the location is known (D-115).
+const LocationPinMap = lazy(() => import('./LocationPinMap'))
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -685,6 +689,16 @@ export function FloodReportForm({
               </p>
             </>
           )
+        )}
+        {gps !== null && !isLocating && (
+          <Suspense fallback={<p className="muted">Loading map…</p>}>
+            <LocationPinMap
+              latitude={gps.latitude}
+              longitude={gps.longitude}
+              accuracy={gps.accuracy}
+              label="Map pin for this report"
+            />
+          </Suspense>
         )}
         {locationMessage !== null &&
           (gpsError !== null ? (

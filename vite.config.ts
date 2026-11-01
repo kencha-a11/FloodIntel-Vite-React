@@ -55,6 +55,10 @@ export default defineConfig({
           '**/MapView-*.css',
           '**/ReportLocationMap-*.js',
           '**/ReportLocationMap-*.css',
+          // The one pin map, dynamically imported by the detail and the
+          // capture form; like the other lazy maps it is runtime-cached.
+          '**/LocationPinMap-*.js',
+          '**/LocationPinMap-*.css',
           // The shared MapLibre runtime is emitted under the mapStyle name,
           // the module both lazy maps import; it is runtime-cached instead.
           '**/mapStyle-*.js',
@@ -67,7 +71,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: /\/assets\/(?:MapView-|ReportLocationMap-|mapStyle-|maplibre-gl-)[^/]*\.(?:js|mjs|css)$/,
+            urlPattern: /\/assets\/(?:MapView-|ReportLocationMap-|LocationPinMap-|mapStyle-|maplibre-gl-)[^/]*\.(?:js|mjs|css)$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-runtime',
