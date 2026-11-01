@@ -14,7 +14,7 @@ export function listReports(
   token: string,
   filters: ReportFilters,
 ): Promise<Paginated<FloodReport>> {
-  const suffix = buildQuery(filters)
+  const suffix = buildReportQuery(filters)
 
   return request<Paginated<FloodReport>>(
     `${API_BASE_URL}/flood-reports${suffix === '' ? '' : `?${suffix}`}`,
@@ -201,8 +201,19 @@ export function listBarangays(token: string): Promise<Barangay[]> {  return requ
   }).then((response) => response.data)
 }
 
-function buildQuery(filters: ReportFilters): string {
+/**
+ * The queue and the export share one filter encoding, so a control that
+ * narrows the list narrows the CSV the same way (FR-29).
+ */
+export function buildReportQuery(
+  filters: ReportFilters,
+  options: { pagination?: boolean } = {},
+): string {
   const query = new URLSearchParams()
+
+  if (filters.q !== '') {
+    query.set('q', filters.q)
+  }
 
   if (filters.flood_level !== '') {
     query.set('flood_level', filters.flood_level)
@@ -228,8 +239,10 @@ function buildQuery(filters: ReportFilters): string {
     query.set('to', filters.to)
   }
 
-  query.set('per_page', String(filters.per_page))
-  query.set('page', String(filters.page))
+  if (options.pagination !== false) {
+    query.set('per_page', String(filters.per_page))
+    query.set('page', String(filters.page))
+  }
 
   return query.toString()
 }

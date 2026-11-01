@@ -16,6 +16,12 @@ import {
 } from '../lib/vocabulary'
 import { reportRealtimeLatency } from '../lib/realtimeApi'
 import { feedPollEnabled } from '../lib/feedPoll'
+import {
+  downloadBlob,
+  exportNoticeText,
+  exportReportCsv,
+  reportExportFilename,
+} from '../lib/reportExport'
 import { useFeedPoll } from '../lib/useFeedPoll'
 import { useRealtimeFeed } from '../lib/useRealtimeFeed'
 import { DeadlineBar } from './DeadlineBar'
@@ -42,6 +48,7 @@ import type {
 } from '../types/report'
 
 const EMPTY_FILTERS: ReportFilters = {
+  q: '',
   flood_level: '',
   alert_level: '',
   status: '',
@@ -79,6 +86,9 @@ export function ReportList({
   const [lastPage, setLastPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportNotice, setExportNotice] = useState('')
+  const [exportError, setExportError] = useState<string | null>(null)
   const [latencyRefreshKey, setLatencyRefreshKey] = useState(0)
   const pendingLatency = useRef<
     Array<{ reportId: number; event: string }>
@@ -209,6 +219,41 @@ export function ReportList({
     setFilters((current) => ({ ...current, page }))
   }
 
+  async function handleExport(): Promise<void> {
+    const token = getStoredToken()
+
+    if (token === null) {
+      return
+    }
+
+    setExporting(true)
+    setExportError(null)
+
+    try {
+      const result = await exportReportCsv(token, {
+        ...filters,
+        from: startOfDay(filters.from),
+        to: endOfDay(filters.to),
+      })
+
+      downloadBlob(result.blob, reportExportFilename(filters))
+      setExportNotice(exportNoticeText(filters, result.count))
+    } catch (err) {
+      if (err instanceof AuthApiError && err.status === 401) {
+        await logout()
+        return
+      }
+
+      setExportError(
+        err instanceof AuthApiError
+          ? err.message
+          : 'Unable to export the report log.',
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="report-list">
       <h2>{canFilter ? 'Flood report queue' : 'Flood reports'}</h2>
@@ -224,8 +269,21 @@ export function ReportList({
       {canFilter && <RealtimeLatencySummary refreshKey={latencyRefreshKey} />}
 
       {error && <Alert tone="danger">{error}</Alert>}
+      {exportError && <Alert tone="danger">{exportError}</Alert>}
 
       <div className="filter-bar">
+        <Field
+          id="filter-q"
+          label="Search"
+          hint="Matches notes, landmark, address, or reporter name."
+        >
+          <TextInput
+            type="search"
+            value={filters.q}
+            onChange={(event) => updateFilter('q', event.target.value)}
+          />
+        </Field>
+
         <Field id="filter-status" label="Status">
           <Select
             value={filters.status}
@@ -309,6 +367,23 @@ export function ReportList({
           />
         </Field>
       </div>
+
+      {canFilter && (
+        <div className="report-export">
+          <Button
+            variant="secondary"
+            size="compact"
+            disabled={exporting}
+            aria-busy={exporting}
+            onClick={() => void handleExport()}
+          >
+            {exporting ? 'Preparing CSV…' : 'Export CSV'}
+          </Button>
+          <span className="muted" role="status">
+            {exportNotice}
+          </span>
+        </div>
+      )}
 
       {isLoading ? (
         <Spinner label="Loading reports…" />
