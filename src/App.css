@@ -358,6 +358,61 @@
   background: var(--color-surface);
 }
 
+.users-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.user-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.user-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.user-row-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.user-row-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.user-row-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.user-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-end;
+  margin-top: var(--space-1);
+}
+
+.user-row-actions .field {
+  flex: 1 1 220px;
+}
+
 .queue-widget {
   position: relative;
   display: flex;

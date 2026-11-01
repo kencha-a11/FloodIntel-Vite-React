@@ -16,6 +16,7 @@ export type AppView =
   | 'tags'
   | 'tokens'
   | 'roles'
+  | 'users'
 
 export interface ViewSection {
   view: AppView
@@ -46,6 +47,8 @@ const COMMAND_ORDER: readonly AppView[] = [
   // The matrix is command-center chrome, so it is absent from FIELD_ORDER:
   // the field interface cannot reach it even if an account held manage-users.
   'roles',
+  // Assignment sits under the matrix it reads, on the same server ability.
+  'users',
 ]
 
 function sectionLabel(view: AppView, canReview: boolean): string {
@@ -64,6 +67,8 @@ function sectionLabel(view: AppView, canReview: boolean): string {
       return 'API tokens'
     case 'roles':
       return 'Roles & permissions'
+    case 'users':
+      return 'Users'
   }
 }
 
@@ -102,6 +107,8 @@ export function viewAccess(
   // The server gates /api/roles on manage-users (FR-103, D-114).
   if (permissions.manageUsers) {
     reachable.add('roles')
+    // /api/users is officer-only and behind the same ability (AUTHZ-11).
+    reachable.add('users')
   }
 
   const order =

@@ -52,10 +52,18 @@ describe('viewAccess', () => {
 
     expect(access.iface).toBe('command_center')
     expect(access.defaultView).toBe('reports')
-    expect(views(access)).toEqual(['reports', 'map', 'tags', 'tokens', 'roles'])
+    expect(views(access)).toEqual([
+      'reports',
+      'map',
+      'tags',
+      'tokens',
+      'roles',
+      'users',
+    ])
     expect(access.sections[0].label).toBe('Review queue')
     expect(access.sections[2].label).toBe('Access tags')
     expect(access.sections[4].label).toBe('Roles & permissions')
+    expect(access.sections[5].label).toBe('Users')
     expect(access.permissions.reviewReports).toBe(true)
     expect(access.permissions.fileImpactReport).toBe(false)
   })
@@ -126,6 +134,7 @@ describe('viewAccess', () => {
     expect(views(access)).toEqual(['capture', 'impact', 'reports'])
     expect(access.permissions.manageUsers).toBe(true)
     expect(isViewReachable(access, 'roles')).toBe(false)
+    expect(isViewReachable(access, 'users')).toBe(false)
   })
 
   it('offers the tag list only in the command center, even with the read ability', () => {
@@ -195,6 +204,7 @@ describe('resolveView', () => {
     )
 
     expect(resolveView(officer, 'roles')).toBe('roles')
+    expect(resolveView(officer, 'users')).toBe('users')
   })
 
   it('falls back to the default instead of rendering a section it cannot open', () => {
@@ -209,6 +219,7 @@ describe('resolveView', () => {
     expect(resolveView(captain, 'map')).toBe('capture')
     expect(resolveView(captain, 'tokens')).toBe('capture')
     expect(resolveView(captain, 'roles')).toBe('capture')
+    expect(resolveView(captain, 'users')).toBe('capture')
   })
 
   it('resolves no request to the interface default', () => {
