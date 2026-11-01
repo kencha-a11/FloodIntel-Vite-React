@@ -33,6 +33,12 @@ const BACKOFF_MS = [
   60 * 60_000,
 ]
 
+// A sustained failure gets eight contacts before the ladder stops; the record
+// stays with its photo and the reporter chooses Retry or Discard (D-109).
+export const MAX_AUTO_ATTEMPTS = 8
+
+const BACKOFF_JITTER_RATIO = 0.2
+
 const BLOCKED_RETRY_MS = 60 * 60_000
 
 const SEND_INTERVAL_MS = 6_000
@@ -67,16 +73,48 @@ export interface SyncDeps {
   ) => Promise<FloodReport | null>
   sendIntervalMs: number
   compressPhoto?: typeof compressPhoto
+  random?: () => number
 }
 
 export interface SyncOptions {
   force?: boolean
 }
 
-export function backoffDelay(attempts: number): number {
+// Jitter spreads a room of devices off the same rung so a returning
+// connection does not deliver every queued photo at once (D-109).
+export function backoffDelay(
+  attempts: number,
+  random: () => number = Math.random,
+): number {
   const index = Math.min(Math.max(attempts, 1), BACKOFF_MS.length) - 1
+  const base = BACKOFF_MS[index]
+  const factor =
+    1 - BACKOFF_JITTER_RATIO + random() * BACKOFF_JITTER_RATIO * 2
 
-  return BACKOFF_MS[index]
+  return Math.round(base * factor)
+}
+
+export function hasExhaustedRetries(attempts: number): boolean {
+  return attempts >= MAX_AUTO_ATTEMPTS
+}
+
+export function terminalRetryMessage(cause: string | null): string {
+  const reason = cause?.trim() ?? ''
+  const prefix =
+    reason === '' ? '' : `${reason.replace(/\.$/, '')}. `
+
+  return `${prefix}Stopped retrying automatically after ${MAX_AUTO_ATTEMPTS} attempts. Retry when you are ready, or discard this report.`
+}
+
+// A manual retry or a fresh sign-in starts a new automatic budget; without
+// the reset the first failure would land at the ceiling again (D-109).
+export function restartQueueItemPatch(): QueueItemPatch {
+  return {
+    status: 'queued',
+    attempts: 0,
+    nextAttemptAt: null,
+    lastError: null,
+  }
 }
 
 export function isReplayMatch(
@@ -397,6 +435,11 @@ export async function runSync(
       }
 
       if (err.status === 403) {
+        if (hasExhaustedRetries(item.attempts + 1)) {
+          await stopRetrying(item, err.message, deps, summary)
+          continue
+        }
+
         await deps.update(item.id, {
           status: 'blocked',
           attempts: item.attempts + 1,
@@ -495,6 +538,11 @@ export async function runSync(
       }
 
       if (err.status === 429) {
+        if (hasExhaustedRetries(item.attempts + 1)) {
+          await stopRetrying(item, err.message, deps, summary)
+          continue
+        }
+
         const wait = (err.retryAfter ?? 60) * 1000
 
         await deps.update(item.id, {
@@ -572,16 +620,40 @@ async function scheduleRetry(
   const attempts = item.attempts + 1
   const message = err instanceof Error ? err.message : 'Network unavailable.'
 
+  if (hasExhaustedRetries(attempts)) {
+    await stopRetrying(item, message, deps, summary)
+    return
+  }
+
   await deps.update(item.id, {
     status: 'queued',
     attempts,
-    nextAttemptAt: deps.now() + backoffDelay(attempts),
+    nextAttemptAt: deps.now() + backoffDelay(attempts, deps.random),
     lastError: message,
   })
 
   summary.outcomes.push(
     outcome(item, 'queued', `${message} Will retry automatically.`),
   )
+}
+
+async function stopRetrying(
+  item: QueueItem,
+  cause: string | null,
+  deps: SyncDeps,
+  summary: SyncSummary,
+): Promise<void> {
+  const message = terminalRetryMessage(cause)
+
+  await deps.update(item.id, {
+    status: 'failed',
+    attempts: item.attempts + 1,
+    nextAttemptAt: null,
+    lastError: message,
+  })
+
+  summary.failed += 1
+  summary.outcomes.push(outcome(item, 'failed', message))
 }
 
 const emptySummary = (): SyncSummary => ({

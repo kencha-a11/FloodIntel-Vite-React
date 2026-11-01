@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_AUTO_ATTEMPTS,
   backoffDelay,
   correctedObservationTime,
+  hasExhaustedRetries,
   isReplayMatch,
+  restartQueueItemPatch,
   runSync,
+  terminalRetryMessage,
 } from './sync'
 import type { SyncDeps } from './sync'
 import { AuthApiError } from './http'
@@ -145,6 +149,7 @@ function createHarness(
     },
     findDuplicate: async () => null,
     sendIntervalMs: 0,
+    random: () => 0.5,
     ...overrides,
   }
 
@@ -526,18 +531,137 @@ describe('runSync', () => {
 
     expect(summary.sent).toBe(1)
   })
+
+  it('keeps retrying below the ceiling', async () => {
+    const harness = createHarness([makeItem({ attempts: 6 })], {
+      send: async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('queued')
+    expect(item?.attempts).toBe(7)
+    expect(item?.nextAttemptAt).toBe(NOW + 60 * 60_000)
+    expect(summary.outcomes[0].status).toBe('queued')
+  })
+
+  it('gives up on a network failure at the ceiling and keeps the photo', async () => {
+    const harness = createHarness([makeItem({ attempts: 7 })], {
+      send: async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('failed')
+    expect(item?.attempts).toBe(MAX_AUTO_ATTEMPTS)
+    expect(item?.nextAttemptAt).toBeNull()
+    expect(item?.photoBytes).toBe(8)
+    expect(item?.kind === 'level' ? item.payload.flood_level : null).toBe(
+      'knee',
+    )
+    expect(item?.lastError).toBe(
+      'Failed to fetch. Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this report.',
+    )
+    expect(summary.failed).toBe(1)
+    expect(summary.remaining).toBe(1)
+    expect(summary.outcomes[0].status).toBe('failed')
+  })
+
+  it('gives up on a blocked account at the ceiling', async () => {
+    const harness = createHarness([makeItem({ attempts: 7 })], {
+      send: async () => {
+        throw new AuthApiError('Your account is not verified.', 403)
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('failed')
+    expect(item?.attempts).toBe(MAX_AUTO_ATTEMPTS)
+    expect(item?.nextAttemptAt).toBeNull()
+    expect(item?.lastError).toContain('Stopped retrying automatically')
+    expect(summary.failed).toBe(1)
+  })
+
+  it('gives up on rate limiting at the ceiling', async () => {
+    const harness = createHarness([makeItem({ attempts: 7 })], {
+      send: async () => {
+        throw new AuthApiError('Too many requests.', 429, {}, 30)
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('failed')
+    expect(item?.attempts).toBe(MAX_AUTO_ATTEMPTS)
+    expect(item?.nextAttemptAt).toBeNull()
+    expect(summary.outcomes[0].status).toBe('failed')
+  })
+
+  it('sends a terminal item again after a manual retry resets its budget', async () => {
+    const harness = createHarness([
+      makeItem({ status: 'failed', attempts: MAX_AUTO_ATTEMPTS }),
+    ])
+
+    await harness.deps.update('item-1', restartQueueItemPatch())
+
+    const summary = await runSync(1, harness.deps, { force: true })
+
+    expect(harness.store.size).toBe(0)
+    expect(summary.sent).toBe(1)
+  })
+})
+
+describe('retry budget helpers', () => {
+  it('reports exhaustion at the documented attempt count', () => {
+    expect(hasExhaustedRetries(MAX_AUTO_ATTEMPTS - 1)).toBe(false)
+    expect(hasExhaustedRetries(MAX_AUTO_ATTEMPTS)).toBe(true)
+    expect(hasExhaustedRetries(MAX_AUTO_ATTEMPTS + 1)).toBe(true)
+  })
+
+  it('names the cause and the next action in the terminal message', () => {
+    expect(terminalRetryMessage('Failed to fetch')).toBe(
+      'Failed to fetch. Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this report.',
+    )
+    expect(terminalRetryMessage('Server error.')).toBe(
+      'Server error. Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this report.',
+    )
+    expect(terminalRetryMessage(null)).toBe(
+      'Stopped retrying automatically after 8 attempts. Retry when you are ready, or discard this report.',
+    )
+  })
+
+  it('resets the budget so the next failure starts a fresh ladder', () => {
+    expect(restartQueueItemPatch()).toEqual({
+      status: 'queued',
+      attempts: 0,
+      nextAttemptAt: null,
+      lastError: null,
+    })
+  })
 })
 
 describe('backoffDelay', () => {
   it('grows with attempts and caps at one hour', () => {
-    expect(backoffDelay(1)).toBe(15_000)
-    expect(backoffDelay(2)).toBe(60_000)
-    expect(backoffDelay(6)).toBe(60 * 60_000)
-    expect(backoffDelay(50)).toBe(60 * 60_000)
+    expect(backoffDelay(1, () => 0.5)).toBe(15_000)
+    expect(backoffDelay(2, () => 0.5)).toBe(60_000)
+    expect(backoffDelay(6, () => 0.5)).toBe(60 * 60_000)
+    expect(backoffDelay(50, () => 0.5)).toBe(60 * 60_000)
   })
 
   it('treats a zero attempt count as the first attempt', () => {
-    expect(backoffDelay(0)).toBe(15_000)
+    expect(backoffDelay(0, () => 0.5)).toBe(15_000)
+  })
+
+  it('spreads each rung by at most twenty percent either way', () => {
+    expect(backoffDelay(1, () => 0)).toBe(12_000)
+    expect(backoffDelay(1, () => 1)).toBe(18_000)
+    expect(backoffDelay(6, () => 0)).toBe(48 * 60_000)
+    expect(backoffDelay(6, () => 1)).toBe(72 * 60_000)
   })
 })
 

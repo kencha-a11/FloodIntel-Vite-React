@@ -23,6 +23,7 @@ import { deliverQueuedItem, createDeliveryDeps } from '../lib/queueDelivery'
 import {
   clearSyncOutcomes,
   getSyncState,
+  restartQueueItemPatch,
   startSyncEngine,
   subscribeToSync,
   syncQueue,
@@ -95,10 +96,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
         for (const item of saved) {
           if (item.status === 'auth-required') {
-            await updateQueueItem(item.id, {
-              status: 'queued',
-              lastError: null,
-            })
+            await updateQueueItem(item.id, restartQueueItemPatch())
             reset += 1
           }
         }
@@ -216,11 +214,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      await updateQueueItem(id, {
-        status: 'queued',
-        nextAttemptAt: null,
-        lastError: null,
-      })
+      await updateQueueItem(id, restartQueueItemPatch())
       await refresh()
       await syncQueue(user.id, { force: true })
     },
@@ -235,11 +229,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     const pending = await listQueue(user.id)
 
     for (const item of pending) {
-      await updateQueueItem(item.id, {
-        status: 'queued',
-        nextAttemptAt: null,
-        lastError: null,
-      })
+      await updateQueueItem(item.id, restartQueueItemPatch())
     }
 
     await refresh()
