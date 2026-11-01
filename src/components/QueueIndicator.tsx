@@ -1,10 +1,30 @@
 import { useEffect, useState } from 'react'
-import { Button, EmptyState } from './ui'
+import { Alert, Badge, Button, EmptyState, Spinner } from './ui'
+import type { AlertTone } from './ui'
 import { useAuth } from '../context/useAuth'
 import { useQueue } from '../context/useQueue'
 import { LEGACY_DEPTH_LABEL, alertTierLabel, floodLevelLabel } from '../lib/vocabulary'
 import { formatDuration } from '../lib/format'
-import type { QueueItem, QueueOutcome } from '../types/queue'
+import { formatInstantWithAge } from '../lib/dateTime'
+import type { QueueItem, QueueItemStatus, QueueOutcome } from '../types/queue'
+
+// Design §7: a submission is "Queued — not yet received" until the API
+// confirms it. "Sent" is only correct after that confirmation.
+const STATUS_LABELS: Record<QueueItemStatus, string> = {
+  queued: 'Queued — not yet received',
+  syncing: 'Sending…',
+  failed: 'Failed — not sent',
+  blocked: 'Blocked — not sent',
+  'auth-required': 'Sign-in needed',
+}
+
+const STATUS_TONES: Record<QueueItemStatus, 'neutral' | 'info' | 'danger' | 'warning'> = {
+  queued: 'neutral',
+  syncing: 'info',
+  failed: 'danger',
+  blocked: 'danger',
+  'auth-required': 'warning',
+}
 
 function levelLabel(item: QueueItem): string {
   if (item.kind === 'impact') {
@@ -35,49 +55,55 @@ function formatAge(createdAt: number): string {
 }
 
 // The capture instant is what a clock repair must not rewrite, so the row
-// shows it beside the save time (D-107).
-function formatObservedAge(observedAt: string): string | null {
-  const observed = Date.parse(observedAt)
-
-  if (Number.isNaN(observed)) {
-    return null
+// carries it under the D-06 label beside the save time (D-107).
+function observedInstant(observedAt: string): string {
+  if (Number.isNaN(Date.parse(observedAt))) {
+    return 'Not recorded'
   }
 
-  const seconds = Math.max(0, Math.floor((Date.now() - observed) / 1000))
-
-  return `seen ${formatDuration(seconds)} ago`
+  return formatInstantWithAge(observedAt)
 }
 
-function statusLabel(item: QueueItem): string {
-  switch (item.status) {
-    case 'queued':
-      return 'Waiting'
-    case 'syncing':
-      return 'Sending'
-    case 'failed':
-      return 'Failed'
-    case 'blocked':
-      return 'Blocked'
-    case 'auth-required':
-      return 'Sign-in needed'
-  }
-}
-
-function noticeClass(outcome: QueueOutcome): string {
+function noticeTone(outcome: QueueOutcome): AlertTone {
   if (outcome.status === 'sent' || outcome.status === 'merged') {
-    return 'queue-notice is-success'
+    return 'success'
   }
 
   if (outcome.status === 'failed') {
-    return 'queue-notice is-danger'
+    return 'danger'
   }
 
-  return 'queue-notice'
+  return 'info'
+}
+
+function reportCount(count: number): string {
+  return count === 1 ? '1 saved report' : `${count} saved reports`
+}
+
+function authBannerText(stale: boolean, pendingCount: number): string {
+  const reason = stale
+    ? 'Saved reports need a fresh sign-in (12-hour limit).'
+    : 'Your session ended.'
+
+  return pendingCount > 0
+    ? `${reason} Sign in again to send ${reportCount(pendingCount)}.`
+    : `${reason} Sign in again to continue.`
+}
+
+function queueAnnouncement(pendingCount: number, failedCount: number): string {
+  const pending =
+    pendingCount === 0
+      ? 'No saved reports waiting to send.'
+      : `${reportCount(pendingCount)} waiting to send.`
+  const failed = failedCount === 0 ? '' : ` ${failedCount} not sent.`
+
+  return `${pending}${failed}`
 }
 
 export function QueueIndicator() {
   const {
     items,
+    loaded,
     pendingCount,
     online,
     running,
@@ -112,31 +138,33 @@ export function QueueIndicator() {
 
   return (
     <div className="queue-widget">
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {queueAnnouncement(pendingCount, failedCount)}
+      </p>
+
       {(authRequired || authStale) && (
-        <p className="queue-banner" role="alert">
-          {authStale
-            ? 'Saved reports need a fresh sign-in (12-hour limit).'
-            : 'Your session ended. Sign in again to send saved reports.'}{' '}
+        <Alert tone="warning" role="alert" className="queue-alert">
+          {authBannerText(authStale, pendingCount)}{' '}
           <Button variant="quiet" onClick={logout}>
             Sign in again
           </Button>
-        </p>
+        </Alert>
       )}
 
       {!storageAvailable && (
-        <p className="queue-banner" role="alert">
+        <Alert tone="warning" role="alert" className="queue-alert">
           Offline storage is unavailable in this browser. Reports will only
           send while the app stays open.
-        </p>
+        </Alert>
       )}
 
       {notice !== null && (
-        <p className={noticeClass(notice)} role="status">
+        <Alert tone={noticeTone(notice)} role="status" className="queue-alert">
           {notice.message}{' '}
           <Button variant="quiet" onClick={dismissOutcomes}>
             Dismiss
           </Button>
-        </p>
+        </Alert>
       )}
 
       <Button
@@ -148,43 +176,61 @@ export function QueueIndicator() {
         onClick={() => setOpen((current) => !current)}
       >
         {pendingCount > 0 ? `Queue (${pendingCount})` : 'Queue'}
-        {failedCount > 0 && (
-          <span className="queue-failed">
-            {failedCount} failed
-          </span>
-        )}
-        {!online && <span className="queue-offline">offline</span>}
+        {failedCount > 0 && <Badge tone="danger">{failedCount} failed</Badge>}
+        {!online && <Badge tone="warning">offline</Badge>}
       </Button>
 
       {running && <span className="muted queue-running">Syncing…</span>}
 
       {open && (
-        <div className="queue-panel" id="queue-panel">
-          <h2>Offline queue</h2>
+        <div
+          className="queue-panel"
+          id="queue-panel"
+          aria-labelledby="queue-panel-title"
+        >
+          <h2 id="queue-panel-title">Offline queue</h2>
 
-          {items.length === 0 ? (
-            <EmptyState title="No saved reports." />
+          {!loaded ? (
+            <Spinner label="Checking saved reports…" />
+          ) : items.length === 0 ? (
+            <EmptyState
+              title="No saved reports."
+              description="A report captured without a connection stays here until the centre receives it."
+            />
           ) : (
-            <ul className="queue-items">
-              {items.map((item) => {
-                const observedAge = formatObservedAge(item.observedAt)
+            <>
+              {!online && (
+                <Alert tone="warning" className="queue-alert">
+                  You are offline. Saved reports will send when the connection
+                  returns.
+                </Alert>
+              )}
 
-                return (
+              <ul className="queue-items">
+                {items.map((item) => (
                   <li key={item.id} className="queue-item">
-                    <div>
+                    <div className="queue-item-head">
                       <strong>{levelLabel(item)}</strong>
-                      <span className="muted">
-                        {' '}
-                        · {formatAge(item.createdAt)}
-                        {observedAge !== null && <> · {observedAge}</>} ·{' '}
-                        {formatSize(item.photoBytes)}
-                      </span>
+                      <Badge tone={STATUS_TONES[item.status]}>
+                        {STATUS_LABELS[item.status]}
+                      </Badge>
                     </div>
 
-                    <div className="queue-item-meta">
-                      <span className={`queue-status is-${item.status}`}>
-                        {statusLabel(item)}
+                    <p className="queue-item-times">
+                      <span className="queue-instant-label">
+                        Observed at (device)
+                      </span>{' '}
+                      <time dateTime={item.observedAt}>
+                        {observedInstant(item.observedAt)}
+                      </time>
+                      <span className="muted">
+                        {' '}
+                        · {formatAge(item.createdAt)} ·{' '}
+                        {formatSize(item.photoBytes)}
                       </span>
+                    </p>
+
+                    <div className="queue-item-meta">
                       {item.attempts > 0 && (
                         <span className="muted">
                           {item.attempts} attempt
@@ -210,7 +256,7 @@ export function QueueIndicator() {
                     </div>
 
                     {item.lastError !== null && (
-                      <small className="field-error">{item.lastError}</small>
+                      <Alert tone="danger">{item.lastError}</Alert>
                     )}
 
                     {confirmDiscard === item.id && (
@@ -239,9 +285,9 @@ export function QueueIndicator() {
                       </div>
                     )}
                   </li>
-                )
-              })}
-            </ul>
+                ))}
+              </ul>
+            </>
           )}
 
           <div className="queue-actions">

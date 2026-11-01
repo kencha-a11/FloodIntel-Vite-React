@@ -23,6 +23,8 @@ export interface SubmitImpactReportInput {
 
 export interface QueueContextValue {
   items: QueueItem[]
+  /** False until the first read of this user's saved records settles. */
+  loaded: boolean
   pendingCount: number
   online: boolean
   running: boolean

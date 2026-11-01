@@ -320,55 +320,20 @@
   gap: 6px;
 }
 
-.queue-offline {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--status-warning-solid-bg);
-  color: var(--status-warning-solid-fg);
-}
-
-.queue-failed {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--status-danger-solid-bg);
-  color: var(--status-danger-solid-fg);
-}
-
 .queue-running {
   font-size: var(--text-xs);
 }
 
-.queue-banner,
-.queue-notice {
+/* Banners and notices keep the panel's right alignment; the surface itself
+ * is the shared Alert primitive (SYNC-14). */
+.queue-alert {
   flex-basis: 100%;
-  margin: 0;
-  font-size: var(--text-xs);
   text-align: right;
-  padding: 6px var(--space-2);
-  border-radius: 6px;
-  background: var(--status-warning-bg);
-  color: var(--status-warning-fg);
 }
 
-.queue-notice {
-  background: var(--status-info-bg);
-  color: var(--color-text);
-}
-
-.queue-notice.is-success {
-  background: var(--status-success-bg);
-  color: var(--status-success-fg);
-}
-
-.queue-notice.is-danger {
-  background: var(--status-danger-bg);
-  color: var(--status-danger-fg);
+.queue-panel .queue-alert {
+  margin-bottom: var(--space-2);
+  text-align: left;
 }
 
 .queue-panel {
@@ -391,6 +356,22 @@
   }
 }
 
+/* The panel is anchored to the trigger, which sits left of the log-out action,
+ * so its 360 px box hangs off a 320 px viewport. Below 480 px it docks to the
+ * viewport as a sheet instead of inheriting that anchor (SYNC-14, design §14). */
+@media (max-width: 480px) {
+  .queue-panel {
+    position: fixed;
+    top: auto;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+    max-height: calc(100dvh - 2 * var(--space-3));
+    overflow: auto;
+  }
+}
+
 .queue-items {
   display: grid;
   gap: var(--space-2);
@@ -410,37 +391,29 @@
   border-radius: var(--radius-md);
 }
 
+.queue-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.queue-item-times {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text);
+}
+
+.queue-instant-label {
+  font-weight: 600;
+}
+
 .queue-item-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-}
-
-.queue-status {
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--status-neutral-bg);
-  color: var(--status-neutral-fg);
-
-  &.is-syncing {
-    background: var(--status-info-bg);
-    color: var(--status-info-fg);
-  }
-
-  &.is-failed,
-  &.is-blocked {
-    background: var(--status-danger-bg);
-    color: var(--status-danger-fg);
-  }
-
-  &.is-auth-required {
-    background: var(--status-warning-bg);
-    color: var(--status-warning-fg);
-  }
 }
 
 .queue-actions {

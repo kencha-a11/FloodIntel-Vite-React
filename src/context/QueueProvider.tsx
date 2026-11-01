@@ -48,10 +48,12 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const syncState = useSyncExternalStore(subscribeToSync, getSyncState)
   const [items, setItems] = useState<QueueItem[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [storageAvailable, setStorageAvailable] = useState(true)
 
   const refresh = useCallback(async () => {
     if (user === null) {
+      setLoaded(false)
       return
     }
 
@@ -60,6 +62,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     } catch {
       setStorageAvailable(false)
       setItems([])
+    } finally {
+      setLoaded(true)
     }
   }, [user])
 
@@ -260,6 +264,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const value = useMemo<QueueContextValue>(() => {
     return {
       items: user === null ? [] : items,
+      loaded: user === null || loaded,
       pendingCount: user === null ? 0 : countPendingItems(items),
       online: syncState.online,
       running: syncState.running,
@@ -279,6 +284,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   }, [
     user,
     items,
+    loaded,
     syncState,
     storageAvailable,
     submitLevelReport,

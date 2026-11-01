@@ -47,11 +47,12 @@ describe('queue retention wiring', () => {
     expect(indicator).toContain('{failedCount} failed')
   })
 
-  it('shows the raw capture instant beside the save time', () => {
+  it('shows the capture instant beside the save time', () => {
     const indicator = read('./QueueIndicator.tsx')
 
-    expect(indicator).toContain('formatObservedAge(item.observedAt)')
-    expect(indicator).toContain('return `seen ${formatDuration(seconds)} ago`')
+    expect(indicator).toContain('Observed at (device)')
+    expect(indicator).toContain('formatInstantWithAge(observedAt)')
+    expect(indicator).toContain('<time dateTime={item.observedAt}>')
   })
 
   it('replaces its own rejected attempt when the form is resubmitted', () => {
