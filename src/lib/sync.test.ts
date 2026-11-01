@@ -7,6 +7,7 @@ import {
 } from './sync'
 import type { SyncDeps } from './sync'
 import { AuthApiError } from './http'
+import { LAST_RESORT_PHOTO_BYTES } from './floodLevels'
 import { AUTH_WINDOW_MS } from './session'
 import type { LevelQueueItem, QueueItem } from '../types/queue'
 import type { FloodReport } from '../types/report'
@@ -82,6 +83,21 @@ function makeReport(
     supersedes_id: null,
     created_at: item.observedAt,
     ...overrides,
+  }
+}
+
+function shrunkPhoto() {
+  const blob = new Blob([new Uint8Array(64)], { type: 'image/jpeg' })
+
+  return {
+    blob,
+    width: 800,
+    height: 600,
+    originalBytes: 2 * 1024 * 1024,
+    bytes: blob.size,
+    quality: 0.6,
+    edge: 1280,
+    meetsTarget: true,
   }
 }
 
@@ -333,20 +349,107 @@ describe('runSync', () => {
     )
   })
 
-  it('marks other 422 responses as failed', async () => {
-    const harness = createHarness([makeItem()], {
+  it('keeps a content rejection failed instead of shrinking the photo', async () => {
+    let compressions = 0
+    const harness = createHarness([makeItem({ photoBytes: 900_000 })], {
       send: async () => {
         throw new AuthApiError('Invalid photo.', 422, {
           photo: ['Invalid photo.'],
         })
       },
+      compressPhoto: async () => {
+        compressions += 1
+        return shrunkPhoto()
+      },
     })
     const summary = await runSync(1, harness.deps)
     const item = harness.store.get('item-1')
 
+    expect(compressions).toBe(0)
     expect(item?.status).toBe('failed')
+    expect(item?.lastError).toBe('Invalid photo.')
+    expect(item?.photoBytes).toBe(900_000)
     expect(summary.failed).toBe(1)
     expect(summary.remaining).toBe(1)
+  })
+
+  it('reduces the photo when the server names a size rejection', async () => {
+    const harness = createHarness(
+      [makeItem({ photoBytes: 2 * 1024 * 1024 })],
+      {
+        send: async () => {
+          throw new AuthApiError(
+            'The photo is larger than the 5 MB upload limit.',
+            422,
+            {
+              photo: ['The photo is larger than the 5 MB upload limit.'],
+              photo_size: ['The photo is larger than the 5 MB upload limit.'],
+            },
+          )
+        },
+        compressPhoto: async () => shrunkPhoto(),
+      },
+    )
+
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('queued')
+    expect(item?.photoBytes).toBe(64)
+    expect(item?.nextAttemptAt).toBeNull()
+    expect(summary.outcomes[0]).toMatchObject({
+      status: 'queued',
+      message: 'Photo reduced and queued for retry.',
+    })
+  })
+
+  it('reduces the photo when a proxy answers 413', async () => {
+    const harness = createHarness(
+      [makeItem({ photoBytes: 2 * 1024 * 1024 })],
+      {
+        send: async () => {
+          throw new AuthApiError('Too large.', 413)
+        },
+        compressPhoto: async () => shrunkPhoto(),
+      },
+    )
+
+    await runSync(1, harness.deps)
+
+    expect(harness.store.get('item-1')?.photoBytes).toBe(64)
+    expect(harness.store.get('item-1')?.status).toBe('queued')
+  })
+
+  it('stops shrinking at the last-resort size and names the next action', async () => {
+    let compressions = 0
+    const harness = createHarness(
+      [makeItem({ photoBytes: LAST_RESORT_PHOTO_BYTES })],
+      {
+        send: async () => {
+          throw new AuthApiError(
+            'The photo is larger than the 5 MB upload limit.',
+            422,
+            {
+              photo_size: ['The photo is larger than the 5 MB upload limit.'],
+            },
+          )
+        },
+        compressPhoto: async () => {
+          compressions += 1
+          return shrunkPhoto()
+        },
+      },
+    )
+
+    await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(compressions).toBe(0)
+    expect(item?.status).toBe('failed')
+    expect(item?.photoBytes).toBe(LAST_RESORT_PHOTO_BYTES)
+    expect(item?.lastError).toBe(
+      'The photo is too large to send and cannot be reduced further. Take a new photo.',
+    )
   })
 
   it('merges a report found on the server after an ambiguous failure', async () => {

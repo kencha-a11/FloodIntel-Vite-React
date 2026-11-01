@@ -66,6 +66,7 @@ export interface SyncDeps {
     item: QueueItem,
   ) => Promise<FloodReport | null>
   sendIntervalMs: number
+  compressPhoto?: typeof compressPhoto
 }
 
 export interface SyncOptions {
@@ -254,7 +255,8 @@ async function shrinkPhoto(
       : LAST_RESORT_PHOTO_BYTES
 
   const blob = new Blob([item.photo], { type: item.photoType })
-  const compressed = await compressPhoto(blob, { targetBytes: target })
+  const compress = deps.compressPhoto ?? compressPhoto
+  const compressed = await compress(blob, { targetBytes: target })
   const buffer = await compressed.blob.arrayBuffer()
 
   await deps.update(item.id, {
@@ -405,7 +407,12 @@ export async function runSync(
         continue
       }
 
-      if (err.status === 413) {
+      // A proxy answers an oversized request with 413; the server names its own
+      // size rejection on `photo_size`, so the same rescue covers both (D-108).
+      if (
+        err.status === 413 ||
+        (err.status === 422 && err.errors.photo_size !== undefined)
+      ) {
         const shrunk = await shrinkPhoto(item, deps).catch(() => false)
 
         if (shrunk) {
@@ -414,6 +421,19 @@ export async function runSync(
           )
           continue
         }
+
+        const message =
+          'The photo is too large to send and cannot be reduced further. Take a new photo.'
+
+        await deps.update(item.id, {
+          status: 'failed',
+          attempts: item.attempts + 1,
+          nextAttemptAt: null,
+          lastError: message,
+        })
+        summary.failed += 1
+        summary.outcomes.push(outcome(item, 'failed', message))
+        continue
       }
 
       if (err.status === 422) {
