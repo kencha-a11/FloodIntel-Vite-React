@@ -17,6 +17,7 @@ export interface Permissions {
   viewValidatedFeed: boolean
   rejectReports: boolean
   manageTokens: boolean
+  manageUsers: boolean
 }
 
 const SUBMIT_FLOOD_REPORT = 'submit-flood-report'
@@ -26,6 +27,7 @@ const VIEW_ALL_BARANGAYS = 'view-all-barangays'
 const VALIDATE_REPORT = 'validate-report'
 const OVERRIDE_VALIDATION = 'override-validation'
 const VIEW_VALIDATED_REPORTS = 'view-validated-reports'
+const MANAGE_USERS = 'manage-users'
 
 export function userPermissions(
   user: Pick<User, 'interface' | 'abilities' | 'role'>,
@@ -46,5 +48,8 @@ export function userPermissions(
     // The interface decides whether the screen exists (FR-104); the server
     // authorizes every token request independently.
     manageTokens: user.interface === 'command_center',
+    // FR-103 names ManageUsers as the authority for role management, and the
+    // matrix endpoint is gated on the same ability (D-114).
+    manageUsers: abilities.includes(MANAGE_USERS),
   }
 }

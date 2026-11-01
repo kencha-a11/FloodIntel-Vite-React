@@ -74,13 +74,15 @@ describe('userPermissions', () => {
       ...COMMAND_CENTER,
       overrideValidation: true,
       rejectReports: true,
+      manageUsers: true,
     })
   })
 
-  it('withholds override and reject from staff', () => {
+  it('withholds override, reject, and user management from staff', () => {
     expect(userPermissions(STAFF)).toEqual({
       ...COMMAND_CENTER,
       overrideValidation: false,
+      manageUsers: false,
     })
   })
 
@@ -95,6 +97,7 @@ describe('userPermissions', () => {
       viewValidatedFeed: false,
       rejectReports: false,
       manageTokens: false,
+      manageUsers: false,
     })
   })
 
@@ -116,6 +119,7 @@ describe('userPermissions', () => {
       viewValidatedFeed: true,
       rejectReports: false,
       manageTokens: false,
+      manageUsers: false,
     })
   })
 
@@ -168,6 +172,23 @@ describe('userPermissions', () => {
         interface: 'field_reporter',
         abilities: [],
       }).manageTokens,
+    ).toBe(false)
+  })
+
+  it('keys the role matrix on manage-users, the ability the endpoint checks', () => {
+    expect(
+      userPermissions({
+        role: 'mdrrmo_staff',
+        interface: 'command_center',
+        abilities: ['manage-users'],
+      }).manageUsers,
+    ).toBe(true)
+    expect(
+      userPermissions({
+        role: 'mdrrmo_officer',
+        interface: 'command_center',
+        abilities: ['validate-report'],
+      }).manageUsers,
     ).toBe(false)
   })
 })

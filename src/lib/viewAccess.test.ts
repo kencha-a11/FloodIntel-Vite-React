@@ -52,18 +52,20 @@ describe('viewAccess', () => {
 
     expect(access.iface).toBe('command_center')
     expect(access.defaultView).toBe('reports')
-    expect(views(access)).toEqual(['reports', 'map', 'tokens'])
+    expect(views(access)).toEqual(['reports', 'map', 'tokens', 'roles'])
     expect(access.sections[0].label).toBe('Review queue')
+    expect(access.sections[3].label).toBe('Roles & permissions')
     expect(access.permissions.reviewReports).toBe(true)
     expect(access.permissions.fileImpactReport).toBe(false)
   })
 
-  it('gives the staff account the same sections and no filing', () => {
+  it('gives the staff account the same sections, without the matrix, and no filing', () => {
     const access = viewAccess(account('command_center', STAFF, 'mdrrmo_staff'))
 
     expect(views(access)).toEqual(['reports', 'map', 'tokens'])
     expect(access.permissions.fileImpactReport).toBe(false)
     expect(access.permissions.reviewReports).toBe(true)
+    expect(access.permissions.manageUsers).toBe(false)
   })
 
   it('lands a captain on capture and keeps the barangay views', () => {
@@ -111,6 +113,20 @@ describe('viewAccess', () => {
     }
   })
 
+  it('never offers the role matrix to a field account, even with manage-users', () => {
+    const access = viewAccess(
+      account(
+        'field_reporter',
+        [...CAPTAIN, 'manage-users'],
+        'barangay_captain',
+      ),
+    )
+
+    expect(views(access)).toEqual(['capture', 'impact', 'reports'])
+    expect(access.permissions.manageUsers).toBe(true)
+    expect(isViewReachable(access, 'roles')).toBe(false)
+  })
+
   it('offers the report list alone when no ability is held', () => {
     const access = viewAccess(account('field_reporter', [], 'barangay_tanod'))
 
@@ -155,6 +171,14 @@ describe('resolveView', () => {
     expect(resolveView(access, 'impact')).toBe('impact')
   })
 
+  it('keeps the requested matrix for the account that may open it', () => {
+    const officer = viewAccess(
+      account('command_center', OFFICER, 'mdrrmo_officer'),
+    )
+
+    expect(resolveView(officer, 'roles')).toBe('roles')
+  })
+
   it('falls back to the default instead of rendering a section it cannot open', () => {
     const officer = viewAccess(
       account('command_center', OFFICER, 'mdrrmo_officer'),
@@ -166,6 +190,7 @@ describe('resolveView', () => {
     expect(resolveView(officer, 'capture')).toBe('reports')
     expect(resolveView(captain, 'map')).toBe('capture')
     expect(resolveView(captain, 'tokens')).toBe('capture')
+    expect(resolveView(captain, 'roles')).toBe('capture')
   })
 
   it('resolves no request to the interface default', () => {

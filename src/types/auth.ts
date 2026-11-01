@@ -48,4 +48,17 @@ export interface CreateTokenResponse {
   token: string
 }
 
+export interface RoleAbility {
+  value: string
+  label: string
+}
+
+export interface RoleAccessRow {
+  value: UserRole
+  label: string
+  interface: { value: AccessInterface; label: string }
+  barangay_scoped: boolean
+  abilities: RoleAbility[]
+}
+
 export type FieldErrors = Partial<Record<string, string[]>>

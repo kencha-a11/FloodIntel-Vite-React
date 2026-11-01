@@ -9,6 +9,7 @@ import { ImpactReportsView } from './components/ImpactReportsView'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
 import { ResetPasswordForm } from './components/ResetPasswordForm'
 import { ReviewWorkspace } from './components/ReviewWorkspace'
+import { RoleMatrixView } from './components/RoleMatrixView'
 import { TokenManager } from './components/TokenManager'
 import { LoginForm } from './components/LoginForm'
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
@@ -157,6 +158,8 @@ function App() {
       {activeView === 'tokens' && (
         <TokenManager onBack={() => setView(null)} />
       )}
+
+      {activeView === 'roles' && <RoleMatrixView />}
     </AppShell>
   )
 }

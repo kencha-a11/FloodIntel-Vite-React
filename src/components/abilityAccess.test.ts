@@ -36,6 +36,7 @@ describe('permission-derived element visibility', () => {
     expect(permissions).toContain(
       `manageTokens: user.interface === 'command_center'`,
     )
+    expect(permissions).toContain('manageUsers: abilities.includes(MANAGE_USERS)')
   })
 
   it('keeps the raw account out of the components', () => {

@@ -8,7 +8,13 @@ import { userPermissions, type Permissions } from './permissions'
  * evidence that a request would be refused (D-08, D-112).
  */
 
-export type AppView = 'capture' | 'impact' | 'reports' | 'map' | 'tokens'
+export type AppView =
+  | 'capture'
+  | 'impact'
+  | 'reports'
+  | 'map'
+  | 'tokens'
+  | 'roles'
 
 export interface ViewSection {
   view: AppView
@@ -35,6 +41,9 @@ const COMMAND_ORDER: readonly AppView[] = [
   'tokens',
   'capture',
   'impact',
+  // The matrix is command-center chrome, so it is absent from FIELD_ORDER:
+  // the field interface cannot reach it even if an account held manage-users.
+  'roles',
 ]
 
 function sectionLabel(view: AppView, canReview: boolean): string {
@@ -49,6 +58,8 @@ function sectionLabel(view: AppView, canReview: boolean): string {
       return 'Map'
     case 'tokens':
       return 'API tokens'
+    case 'roles':
+      return 'Roles & permissions'
   }
 }
 
@@ -75,6 +86,11 @@ export function viewAccess(
 
   if (permissions.manageTokens) {
     reachable.add('tokens')
+  }
+
+  // The server gates /api/roles on manage-users (FR-103, D-114).
+  if (permissions.manageUsers) {
+    reachable.add('roles')
   }
 
   const order =
