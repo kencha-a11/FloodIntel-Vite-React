@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import * as maplibregl from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
-// MapLibre derives its worker from import.meta.url, which points at the
-// bundled chunk. Point it at the emitted asset instead.
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+import { maplibregl } from '../lib/mapRuntime'
 import { useAuth } from '../context/useAuth'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
 import { loadElevationSampler, cellSizeMeters, describeCellSize } from '../lib/elevation'
@@ -230,8 +226,6 @@ export default function MapView({ canViewValidatedFeed }: { canViewValidatedFeed
         if (cancelled || containerRef.current === null) {
           return
         }
-
-        maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
         map = new maplibregl.Map({
           container: containerRef.current,

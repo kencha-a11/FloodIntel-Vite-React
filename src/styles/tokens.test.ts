@@ -3,7 +3,13 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { BASEMAP_COLORS, MAP_ALERT_TIERS, MAP_DERIVED, MAP_TERRAIN } from './tokens'
+import {
+  BASEMAP_COLORS,
+  MAP_ALERT_TIERS,
+  MAP_DERIVED,
+  MAP_REPORTED_ACCURACY,
+  MAP_TERRAIN,
+} from './tokens'
 
 const tokensCss = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8')
 
@@ -218,6 +224,12 @@ describe('map token mirror', () => {
     expect(MAP_DERIVED.fill).toBe(vars.get('--source-derived-bg'))
     expect(MAP_DERIVED.stroke).toBe(vars.get('--source-derived-border'))
     expect(String(MAP_DERIVED.fillOpacity)).toBe(vars.get('--source-derived-fill-opacity'))
+  })
+
+  it('draws the accuracy ring with the reported source tokens', () => {
+    expect(MAP_REPORTED_ACCURACY.fill).toBe(vars.get('--source-observed-bg'))
+    expect(MAP_REPORTED_ACCURACY.stroke).toBe(vars.get('--source-observed-border'))
+    expect(MAP_REPORTED_ACCURACY.fill).not.toBe(MAP_DERIVED.fill)
   })
 
   it('matches the terrain ramp tokens', () => {

@@ -50,13 +50,24 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
-        globIgnores: ['**/MapView-*.js', '**/MapView-*.css'],
+        globIgnores: [
+          '**/MapView-*.js',
+          '**/MapView-*.css',
+          '**/ReportLocationMap-*.js',
+          '**/ReportLocationMap-*.css',
+          // The shared MapLibre runtime is emitted under the mapStyle name,
+          // the module both lazy maps import; it is runtime-cached instead.
+          '**/mapStyle-*.js',
+          '**/mapStyle-*.css',
+          '**/maplibre-gl-*.js',
+          '**/maplibre-gl-*.css',
+        ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/storage\//],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: /\/assets\/(?:MapView-|maplibre-gl-worker-)[^/]*\.(?:js|mjs|css)$/,
+            urlPattern: /\/assets\/(?:MapView-|ReportLocationMap-|mapStyle-|maplibre-gl-)[^/]*\.(?:js|mjs|css)$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-runtime',

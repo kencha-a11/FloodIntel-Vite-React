@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
@@ -41,6 +41,10 @@ import {
 } from './ui'
 import type { FieldErrors } from '../types/auth'
 import type { FloodReport } from '../types/report'
+
+// The location map is its own chunk: a reviewer who never opens a report never
+// downloads MapLibre.
+const ReportLocationMap = lazy(() => import('./ReportLocationMap'))
 
 function combineErrors(
   ...messages: (string | null | undefined)[]
@@ -324,6 +328,10 @@ export function ReportDetail({
             />
           )}
 
+          <Suspense fallback={<p className="muted">Loading the location map…</p>}>
+            <ReportLocationMap report={report} />
+          </Suspense>
+
           {report.anomaly_flags.length > 0 && (
             <Card className="anomaly-panel" label="Report anomaly flags">
               <h3>Flags for review</h3>
@@ -383,24 +391,6 @@ export function ReportDetail({
               <dt>Reported by</dt>
               <dd>
                 {report.user.first_name} {report.user.last_name}
-              </dd>
-            </div>
-            <div>
-              <dt>Coordinates</dt>
-              <dd>
-                {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
-                {report.gps_accuracy !== null && (
-                  <span className="muted">
-                    {' '}
-                    (±{Math.round(report.gps_accuracy)} m accuracy)
-                  </span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Address</dt>
-              <dd className="report-address">
-                {report.address ?? 'Not available'}
               </dd>
             </div>
             <div>

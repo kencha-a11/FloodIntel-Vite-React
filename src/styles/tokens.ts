@@ -61,6 +61,18 @@ export const MAP_TERRAIN = {
   fillOpacity: 0.45,
 } as const
 
+/*
+ * The GPS accuracy ring names the device's own uncertainty around a Reported
+ * position, so it borrows the Reported source tokens rather than an alert
+ * color (NFR-24). Its opacity is lower than the derived fill because the ring
+ * marks a radius, not a surface.
+ */
+export const MAP_REPORTED_ACCURACY = {
+  fill: '#ea580c',
+  fillOpacity: 0.12,
+  stroke: '#9a3412',
+} as const
+
 // Basemap cartography. Not a semantic UI role: these are the offline vector
 // tiles' paint colors.
 export const BASEMAP_COLORS = {
