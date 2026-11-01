@@ -22,6 +22,7 @@ const user: User = {
 interface Overrides {
   activeView?: AppView
   canSubmit?: boolean
+  canViewImpact?: boolean
   canReview?: boolean
   canViewMap?: boolean
   canManageTokens?: boolean
@@ -33,6 +34,7 @@ function render(overrides: Overrides = {}): string {
       user={user}
       activeView={overrides.activeView ?? 'reports'}
       canSubmit={overrides.canSubmit ?? true}
+      canViewImpact={overrides.canViewImpact ?? true}
       canReview={overrides.canReview ?? true}
       canViewMap={overrides.canViewMap ?? true}
       canManageTokens={overrides.canManageTokens ?? true}
@@ -82,12 +84,25 @@ describe('AppShell', () => {
   })
 
   it('hides sections the account cannot reach and renames the list', () => {
-    const html = render({ canSubmit: false, canReview: false, canViewMap: false })
+    const html = render({
+      canSubmit: false,
+      canViewImpact: false,
+      canReview: false,
+      canViewMap: false,
+    })
 
     expect(html).not.toContain('New report')
+    expect(html).not.toContain('>Impact<')
     expect(html).not.toContain('>Map<')
     expect(html).toContain('>Reports<')
     expect(html).toContain('>API tokens<')
+  })
+
+  it('shows the impact section and marks it current', () => {
+    const html = render({ activeView: 'impact' })
+
+    expect(html).toContain('aria-current="page">Impact</button>')
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
   })
 
   it('hides token management from field-facing accounts', () => {

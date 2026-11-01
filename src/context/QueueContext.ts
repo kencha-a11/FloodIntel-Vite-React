@@ -1,11 +1,21 @@
 import { createContext } from 'react'
-import type { LevelReportPayload, QueueItem, QueueOutcome } from '../types/queue'
+import type {
+  ImpactReportPayload,
+  LevelReportPayload,
+  QueueItem,
+  QueueOutcome,
+} from '../types/queue'
 
 export interface SubmitLevelReportInput {
   payload: LevelReportPayload
   observedAt: string
   photo: Blob
   photoName: string
+}
+
+export interface SubmitImpactReportInput {
+  payload: ImpactReportPayload
+  observedAt: string
 }
 
 export interface SubmitLevelReportResult {
@@ -27,6 +37,9 @@ export interface QueueContextValue {
   outcomes: QueueOutcome[]
   submitLevelReport: (
     input: SubmitLevelReportInput,
+  ) => Promise<SubmitLevelReportResult>
+  submitImpactReport: (
+    input: SubmitImpactReportInput,
   ) => Promise<SubmitLevelReportResult>
   retry: (id: string) => Promise<void>
   retryAll: () => Promise<void>

@@ -22,6 +22,7 @@ export interface ImpactReportInput {
   related_level_report_ids?: number[] | null
   remarks: string | null
   reported_at: string | null
+  supersedes_id?: number | null
 }
 
 export type ImpactStatus = 'submitted' | 'superseded'

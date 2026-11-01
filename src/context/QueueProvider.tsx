@@ -5,6 +5,7 @@ import { useAuth } from './useAuth'
 import { QueueContext } from './QueueContext'
 import type {
   QueueContextValue,
+  SubmitImpactReportInput,
   SubmitLevelReportInput,
   SubmitLevelReportResult,
 } from './QueueContext'
@@ -131,6 +132,50 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     return startSyncEngine(user.id)
   }, [user])
 
+  const deliverItem = useCallback(
+    async (item: QueueItem): Promise<SubmitLevelReportResult> => {
+      if (user === null) {
+        throw new Error('You are not signed in.')
+      }
+
+      await enqueue(item)
+      await refresh()
+
+      const summary = await syncQueue(user.id)
+      let outcome = summary.outcomes.find((entry) => entry.id === item.id)
+
+      if (
+        outcome === undefined &&
+        summary.remaining > 0 &&
+        (typeof navigator === 'undefined' || navigator.onLine)
+      ) {
+        const retrySummary = await syncQueue(user.id)
+        outcome = retrySummary.outcomes.find((entry) => entry.id === item.id)
+      }
+
+      const failed = outcome?.status === 'failed'
+
+      if (failed) {
+        await removeQueueItem(item.id)
+      }
+
+      const remaining = failed ? null : await getQueueItem(item.id)
+
+      return {
+        id: item.id,
+        queued: remaining !== null,
+        failed,
+        reportId: outcome?.reportId ?? null,
+        message:
+          outcome?.message ??
+          (remaining !== null
+            ? 'Saved on this device. It will send automatically when online.'
+            : 'Report sent.'),
+      }
+    },
+    [user, refresh],
+  )
+
   const submitLevelReport = useCallback(
     async (
       input: SubmitLevelReportInput,
@@ -141,7 +186,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
       const photoBytes = await input.photo.arrayBuffer()
       const id = newClientId()
-      const item: QueueItem = {
+
+      return deliverItem({
         id,
         userId: user.id,
         kind: 'level',
@@ -156,44 +202,41 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         nextAttemptAt: null,
         createdAt: Date.now(),
         observedAt: input.observedAt,
-      }
-
-      await enqueue(item)
-      await refresh()
-
-      const summary = await syncQueue(user.id)
-      let outcome = summary.outcomes.find((entry) => entry.id === id)
-
-      if (
-        outcome === undefined &&
-        summary.remaining > 0 &&
-        (typeof navigator === 'undefined' || navigator.onLine)
-      ) {
-        const retrySummary = await syncQueue(user.id)
-        outcome = retrySummary.outcomes.find((entry) => entry.id === id)
-      }
-
-      const failed = outcome?.status === 'failed'
-
-      if (failed) {
-        await removeQueueItem(id)
-      }
-
-      const remaining = failed ? null : await getQueueItem(id)
-
-      return {
-        id,
-        queued: remaining !== null,
-        failed,
-        reportId: outcome?.reportId ?? null,
-        message:
-          outcome?.message ??
-          (remaining !== null
-            ? 'Saved on this device. It will send automatically when online.'
-            : 'Report sent.'),
-      }
+      })
     },
-    [user, refresh],
+    [user, deliverItem],
+  )
+
+  const submitImpactReport = useCallback(
+    async (
+      input: SubmitImpactReportInput,
+    ): Promise<SubmitLevelReportResult> => {
+      if (user === null) {
+        throw new Error('You are not signed in.')
+      }
+
+      const id = newClientId()
+
+      // Impact reports carry no photo, so the queue record stores an empty
+      // buffer and counts zero bytes against the offline budget.
+      return deliverItem({
+        id,
+        userId: user.id,
+        kind: 'impact',
+        payload: input.payload,
+        photo: new ArrayBuffer(0),
+        photoType: 'application/json',
+        photoName: '',
+        photoBytes: 0,
+        status: 'queued',
+        attempts: 0,
+        lastError: null,
+        nextAttemptAt: null,
+        createdAt: Date.now(),
+        observedAt: input.observedAt,
+      })
+    },
+    [user, deliverItem],
   )
 
   const retry = useCallback(
@@ -256,6 +299,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       storageAvailable,
       outcomes: syncState.outcomes,
       submitLevelReport,
+      submitImpactReport,
       retry,
       retryAll,
       clearDeviceData,
@@ -268,6 +312,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     syncState,
     storageAvailable,
     submitLevelReport,
+    submitImpactReport,
     retry,
     retryAll,
     clearDeviceData,

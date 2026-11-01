@@ -2,12 +2,19 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { Button } from './ui'
 import type { User } from '../types/auth'
 
-export type AppView = 'capture' | 'reports' | 'detail' | 'map' | 'tokens'
+export type AppView =
+  | 'capture'
+  | 'impact'
+  | 'reports'
+  | 'detail'
+  | 'map'
+  | 'tokens'
 
 interface AppShellProps {
   user: User
   activeView: AppView
   canSubmit: boolean
+  canViewImpact: boolean
   canReview: boolean
   canViewMap: boolean
   canManageTokens: boolean
@@ -29,6 +36,7 @@ export function AppShell({
   user,
   activeView,
   canSubmit,
+  canViewImpact,
   canReview,
   canViewMap,
   canManageTokens,
@@ -85,6 +93,16 @@ export function AppShell({
             onClick={() => onNavigate('capture')}
           >
             New report
+          </Button>
+        )}
+
+        {canViewImpact && (
+          <Button
+            variant={navVariant(current === 'impact')}
+            aria-current={currentPage(current === 'impact')}
+            onClick={() => onNavigate('impact')}
+          >
+            Impact
           </Button>
         )}
 

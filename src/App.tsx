@@ -5,6 +5,7 @@ import { AuthShell } from './components/AuthShell'
 import { EmailVerificationResult } from './components/EmailVerificationResult'
 import { EmailVerificationPrompt } from './components/EmailVerificationPrompt'
 import { FloodReportForm } from './components/FloodReportForm'
+import { ImpactReportsView } from './components/ImpactReportsView'
 import { ForgotPasswordForm } from './components/ForgotPasswordForm'
 import { ReportDetail } from './components/ReportDetail'
 import { ReportList } from './components/ReportList'
@@ -21,6 +22,8 @@ const MapView = lazy(() => import('./components/MapView'))
 type AuthMode = 'login' | 'forgot-password'
 
 const ABILITY_SUBMIT_FLOOD_REPORT = 'submit-flood-report'
+const ABILITY_SUBMIT_IMPACT_REPORT = 'submit-impact-report'
+const ABILITY_VIEW_OWN_BARANGAY = 'view-own-barangay'
 const ABILITY_VIEW_ALL_BARANGAYS = 'view-all-barangays'
 const ABILITY_MANAGE_USERS = 'manage-users'
 const ABILITY_VIEW_VALIDATED_REPORTS = 'view-validated-reports'
@@ -99,6 +102,9 @@ function App() {
 
   const abilities = user.abilities ?? []
   const canSubmit = abilities.includes(ABILITY_SUBMIT_FLOOD_REPORT)
+  const canFileImpact = abilities.includes(ABILITY_SUBMIT_IMPACT_REPORT)
+  const canViewImpact =
+    canFileImpact || abilities.includes(ABILITY_VIEW_OWN_BARANGAY)
   const canReview =
     abilities.includes(ABILITY_VIEW_ALL_BARANGAYS) ||
     abilities.includes(ABILITY_MANAGE_USERS)
@@ -112,6 +118,7 @@ function App() {
       user={user}
       activeView={activeView}
       canSubmit={canSubmit}
+      canViewImpact={canViewImpact}
       canReview={canReview}
       canViewMap={canViewMap}
       canManageTokens={canManageTokens}
@@ -123,6 +130,10 @@ function App() {
 
       {activeView === 'capture' && canSubmit && (
         <FloodReportForm onViewReports={() => setView('reports')} />
+      )}
+
+      {activeView === 'impact' && (
+        <ImpactReportsView canFileImpact={canFileImpact} />
       )}
 
       {activeView === 'reports' && (

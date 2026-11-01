@@ -116,6 +116,7 @@ export function submitImpactReport(
   if (report.breakdown) body.breakdown = report.breakdown
   if (report.related_level_report_ids) body.related_level_report_ids = report.related_level_report_ids
   if (report.reported_at) body.reported_at = report.reported_at
+  if (report.supersedes_id) body.supersedes_id = report.supersedes_id
 
   return request<{ data: FloodImpactReport }>(
     `${API_BASE_URL}/flood-impact-reports`,
