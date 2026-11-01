@@ -45,4 +45,34 @@ describe('request', () => {
     expect((error as AuthApiError).status).toBe(401)
     expect((error as AuthApiError).retryAfter).toBeNull()
   })
+
+  it('reads the server clock off a rejected response', async () => {
+    respondOnce(422, { Date: 'Wed, 21 Oct 2026 02:00:00 GMT' })
+
+    const error = await request('/api/flood-reports').catch(
+      (err: unknown) => err,
+    )
+
+    expect((error as AuthApiError).serverDate).toBe(
+      Date.parse('Wed, 21 Oct 2026 02:00:00 GMT'),
+    )
+  })
+
+  it('leaves the server clock unknown when the header is missing or malformed', async () => {
+    respondOnce(422, { Date: 'not-a-date' })
+
+    const malformed = await request('/api/flood-reports').catch(
+      (err: unknown) => err,
+    )
+
+    expect((malformed as AuthApiError).serverDate).toBeNull()
+
+    respondOnce(422)
+
+    const absent = await request('/api/flood-reports').catch(
+      (err: unknown) => err,
+    )
+
+    expect((absent as AuthApiError).serverDate).toBeNull()
+  })
 })

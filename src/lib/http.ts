@@ -8,18 +8,21 @@ export class AuthApiError extends Error {
   readonly status: number
   readonly errors: FieldErrors
   readonly retryAfter: number | null
+  readonly serverDate: number | null
 
   constructor(
     message: string,
     status: number,
     errors: FieldErrors = {},
     retryAfter: number | null = null,
+    serverDate: number | null = null,
   ) {
     super(message)
     this.name = 'AuthApiError'
     this.status = status
     this.errors = errors
     this.retryAfter = retryAfter
+    this.serverDate = serverDate
   }
 }
 
@@ -110,10 +113,23 @@ async function sendRequest<T>(responsePromise: Promise<Response>): Promise<T> {
       response.status,
       errors,
       parseRetryAfter(response.headers.get('Retry-After')),
+      parseServerDate(response.headers.get('Date')),
     )
   }
 
   return body as T
+}
+
+// The queued report's observation time can only be corrected against the
+// server's clock, and this header is the only one on the path (D-107).
+function parseServerDate(header: string | null): number | null {
+  if (header === null) {
+    return null
+  }
+
+  const parsed = Date.parse(header)
+
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 function parseRetryAfter(header: string | null): number | null {

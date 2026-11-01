@@ -34,6 +34,20 @@ function formatAge(createdAt: number): string {
   return `saved ${formatDuration(seconds)} ago`
 }
 
+// The capture instant is what a clock repair must not rewrite, so the row
+// shows it beside the save time (D-107).
+function formatObservedAge(observedAt: string): string | null {
+  const observed = Date.parse(observedAt)
+
+  if (Number.isNaN(observed)) {
+    return null
+  }
+
+  const seconds = Math.max(0, Math.floor((Date.now() - observed) / 1000))
+
+  return `seen ${formatDuration(seconds)} ago`
+}
+
 function statusLabel(item: QueueItem): string {
   switch (item.status) {
     case 'queued':
@@ -152,76 +166,81 @@ export function QueueIndicator() {
             <EmptyState title="No saved reports." />
           ) : (
             <ul className="queue-items">
-              {items.map((item) => (
-                <li key={item.id} className="queue-item">
-                  <div>
-                    <strong>{levelLabel(item)}</strong>
-                    <span className="muted">
-                      {' '}
-                      · {formatAge(item.createdAt)} ·{' '}
-                      {formatSize(item.photoBytes)}
-                    </span>
-                  </div>
+              {items.map((item) => {
+                const observedAge = formatObservedAge(item.observedAt)
 
-                  <div className="queue-item-meta">
-                    <span className={`queue-status is-${item.status}`}>
-                      {statusLabel(item)}
-                    </span>
-                    {item.attempts > 0 && (
+                return (
+                  <li key={item.id} className="queue-item">
+                    <div>
+                      <strong>{levelLabel(item)}</strong>
                       <span className="muted">
-                        {item.attempts} attempt
-                        {item.attempts === 1 ? '' : 's'}
+                        {' '}
+                        · {formatAge(item.createdAt)}
+                        {observedAge !== null && <> · {observedAge}</>} ·{' '}
+                        {formatSize(item.photoBytes)}
                       </span>
-                    )}
-                    {item.status !== 'syncing' && (
-                      <Button
-                        variant="quiet"
-                        onClick={() => void retry(item.id)}
-                      >
-                        Retry
-                      </Button>
-                    )}
-                    {item.status !== 'syncing' && confirmDiscard !== item.id && (
-                      <Button
-                        variant="quiet"
-                        onClick={() => setConfirmDiscard(item.id)}
-                      >
-                        Discard
-                      </Button>
-                    )}
-                  </div>
-
-                  {item.lastError !== null && (
-                    <small className="field-error">{item.lastError}</small>
-                  )}
-
-                  {confirmDiscard === item.id && (
-                    <div className="queue-discard" role="group" aria-label="Confirm discard">
-                      <p>
-                        Discard {levelLabel(item)}? Its photo and saved details
-                        are deleted from this device. This cannot be undone.
-                      </p>
-                      <Button
-                        variant="danger"
-                        size="compact"
-                        onClick={() => {
-                          setConfirmDiscard(null)
-                          void discard(item.id)
-                        }}
-                      >
-                        Discard report
-                      </Button>
-                      <Button
-                        variant="quiet"
-                        size="compact"
-                        onClick={() => setConfirmDiscard(null)}
-                      >
-                        Keep report
-                      </Button>
                     </div>
-                  )}
-                </li>
-              ))}
+
+                    <div className="queue-item-meta">
+                      <span className={`queue-status is-${item.status}`}>
+                        {statusLabel(item)}
+                      </span>
+                      {item.attempts > 0 && (
+                        <span className="muted">
+                          {item.attempts} attempt
+                          {item.attempts === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      {item.status !== 'syncing' && (
+                        <Button
+                          variant="quiet"
+                          onClick={() => void retry(item.id)}
+                        >
+                          Retry
+                        </Button>
+                      )}
+                      {item.status !== 'syncing' && confirmDiscard !== item.id && (
+                        <Button
+                          variant="quiet"
+                          onClick={() => setConfirmDiscard(item.id)}
+                        >
+                          Discard
+                        </Button>
+                      )}
+                    </div>
+
+                    {item.lastError !== null && (
+                      <small className="field-error">{item.lastError}</small>
+                    )}
+
+                    {confirmDiscard === item.id && (
+                      <div className="queue-discard" role="group" aria-label="Confirm discard">
+                        <p>
+                          Discard {levelLabel(item)}? Its photo and saved details
+                          are deleted from this device. This cannot be undone.
+                        </p>
+                        <Button
+                          variant="danger"
+                          size="compact"
+                          onClick={() => {
+                            setConfirmDiscard(null)
+                            void discard(item.id)
+                          }}
+                        >
+                          Discard report
+                        </Button>
+                        <Button
+                          variant="quiet"
+                          size="compact"
+                          onClick={() => setConfirmDiscard(null)}
+                        >
+                          Keep report
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
 

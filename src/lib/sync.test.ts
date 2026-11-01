@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   backoffDelay,
+  correctedObservationTime,
   isReplayMatch,
   runSync,
 } from './sync'
@@ -216,10 +217,14 @@ describe('runSync', () => {
     expect(summary.outcomes[0].status).toBe('queued')
   })
 
-  it('retries with a null reported_at when the server rejects the clock', async () => {
+  it('corrects the transmitted instant when the server rejects the clock', async () => {
     let calls = 0
+    const SKEW_MS = 60 * 60_000
+    const serverNow = NOW - SKEW_MS
+    const observedAt = new Date(NOW - 60_000).toISOString()
+    const correctedAt = new Date(serverNow - 60_000).toISOString()
 
-    const harness = createHarness([makeItem()], {
+    const harness = createHarness([makeItem({ observedAt })], {
       send: async (_token, item) => {
         calls += 1
 
@@ -227,29 +232,105 @@ describe('runSync', () => {
           throw new Error('expected a level item')
         }
 
-        if (item.payload.reported_at !== null) {
+        const reportedAt = item.payload.reported_at
+
+        if (reportedAt === null || Date.parse(reportedAt) > serverNow) {
           throw new AuthApiError(
             'The reported at field must not be in the future.',
             422,
             { reported_at: ['The reported at field must not be in the future.'] },
+            null,
+            serverNow,
           )
         }
 
-        return makeReport(item, { reported_at: item.observedAt })
+        return makeReport(item, { reported_at: reportedAt })
       },
     })
     const first = await runSync(1, harness.deps)
+    const repaired = harness.store.get('item-1')
 
     expect(calls).toBe(1)
     expect(first.sent).toBe(0)
     expect(first.outcomes[0].status).toBe('queued')
-    expect(harness.store.get('item-1')?.payload.reported_at).toBeNull()
+    expect(repaired?.payload.reported_at).toBe(correctedAt)
+    expect(repaired?.observedAt).toBe(observedAt)
+    expect(repaired?.clockSkewMs).toBe(SKEW_MS)
+    expect(repaired?.status).toBe('queued')
+    expect(repaired?.lastError).toContain('60 min ahead')
+    expect(first.outcomes[0].message).toContain('corrected observation time')
 
     const second = await runSync(1, harness.deps)
 
     expect(calls).toBe(2)
     expect(second.sent).toBe(1)
     expect(harness.store.size).toBe(0)
+  })
+
+  it('fails a second clock rejection with a clock message and keeps the item', async () => {
+    const harness = createHarness(
+      [makeItem({ clockSkewMs: 60 * 60_000 })],
+      {
+        send: async () => {
+          throw new AuthApiError(
+            'The reported at field must not be in the future.',
+            422,
+            { reported_at: ['The reported at field must not be in the future.'] },
+            null,
+            NOW,
+          )
+        },
+      },
+    )
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.status).toBe('failed')
+    expect(item?.photoBytes).toBe(8)
+    expect(item?.lastError).toContain('corrected observation time was rejected')
+    expect(summary.failed).toBe(1)
+    expect(summary.remaining).toBe(1)
+  })
+
+  it('never nulls the instant when the server does not report its time', async () => {
+    const harness = createHarness([makeItem()], {
+      send: async () => {
+        throw new AuthApiError(
+          'The reported at field must not be in the future.',
+          422,
+          { reported_at: ['The reported at field must not be in the future.'] },
+        )
+      },
+    })
+    const summary = await runSync(1, harness.deps)
+    const item = harness.store.get('item-1')
+
+    expect(item?.payload.reported_at).toBe('2026-10-21T02:00:00.000Z')
+    expect(item?.status).toBe('failed')
+    expect(item?.lastError).toContain('device clock cannot be corrected')
+    expect(summary.failed).toBe(1)
+  })
+
+  it('clamps a corrected instant to the server clock', () => {
+    const observedAt = '2026-10-21T02:00:00.000Z'
+
+    expect(
+      correctedObservationTime(
+        observedAt,
+        -30 * 60_000,
+        Date.parse('2026-10-21T01:30:00.000Z'),
+      ),
+    ).toBe('2026-10-21T01:30:00.000Z')
+    expect(
+      correctedObservationTime(
+        observedAt,
+        0,
+        Date.parse('2026-10-21T02:05:00.000Z'),
+      ),
+    ).toBe(observedAt)
+    expect(correctedObservationTime('not-a-date', 0, NOW)).toBe(
+      'not-a-date',
+    )
   })
 
   it('marks other 422 responses as failed', async () => {

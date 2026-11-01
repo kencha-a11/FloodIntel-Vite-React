@@ -123,12 +123,39 @@ export function isReplayMatch(
   }
 
   const observed = item.payload.reported_at ?? item.observedAt
+
+  // One candidate, not two: matching receipt time as an alternative would
+  // merge two genuine reports filed within the window.
   const candidate = report.reported_at ?? report.created_at
 
   return (
     Math.abs(Date.parse(candidate) - Date.parse(observed)) <=
     REPLAY_TOLERANCE_MS
   )
+}
+
+// The server's clock is the only external reference on the path, so the
+// correction is measured from its Date header and the instant is clamped
+// to it: a queued report keeps its observation time, and never gains a
+// future one (D-107).
+export function correctedObservationTime(
+  observedAt: string,
+  skewMs: number,
+  serverNow: number,
+): string {
+  const observed = Date.parse(observedAt)
+
+  if (Number.isNaN(observed)) {
+    return observedAt
+  }
+
+  return new Date(Math.min(observed - skewMs, serverNow)).toISOString()
+}
+
+function clockRepairMessage(skewMs: number): string {
+  const minutes = Math.max(1, Math.round(Math.abs(skewMs) / 60_000))
+
+  return `Device clock is ${minutes} min ahead of the server; retrying with the corrected observation time.`
 }
 
 export function isNetworkFailure(err: unknown): boolean {
@@ -320,6 +347,8 @@ export async function runSync(
 
     await deps.update(item.id, { status: 'syncing' })
 
+    const sentAt = deps.now()
+
     try {
       const report = await deps.send(token, item)
 
@@ -388,24 +417,49 @@ export async function runSync(
       }
 
       if (err.status === 422) {
-        if (
+        const clockRejected =
           item.kind === 'level' &&
           err.errors.reported_at !== undefined &&
           item.payload.reported_at !== null
-        ) {
+
+        if (clockRejected) {
+          const alreadyRepaired =
+            item.clockSkewMs !== undefined && item.clockSkewMs !== null
+
+          if (!alreadyRepaired && err.serverDate !== null) {
+            const skewMs = sentAt - err.serverDate
+            const message = clockRepairMessage(skewMs)
+
+            await deps.update(item.id, {
+              payload: {
+                ...item.payload,
+                reported_at: correctedObservationTime(
+                  item.observedAt,
+                  skewMs,
+                  err.serverDate,
+                ),
+              },
+              clockSkewMs: skewMs,
+              status: 'queued',
+              nextAttemptAt: null,
+              lastError: message,
+            })
+            summary.outcomes.push(outcome(item, 'queued', message))
+            continue
+          }
+
+          const message = alreadyRepaired
+            ? 'The corrected observation time was rejected again. Check the device clock, then retry.'
+            : 'The server did not report its time, so the device clock cannot be corrected. Check the device clock, then retry.'
+
           await deps.update(item.id, {
-            payload: { ...item.payload, reported_at: null },
-            status: 'queued',
+            status: 'failed',
+            attempts: item.attempts + 1,
             nextAttemptAt: null,
-            lastError: 'Device clock adjusted; retrying with server time.',
+            lastError: message,
           })
-          summary.outcomes.push(
-            outcome(
-              item,
-              'queued',
-              'Retrying with the server timestamp because the device clock is ahead.',
-            ),
-          )
+          summary.failed += 1
+          summary.outcomes.push(outcome(item, 'failed', message))
           continue
         }
 

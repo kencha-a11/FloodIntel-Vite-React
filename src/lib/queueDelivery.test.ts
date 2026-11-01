@@ -183,4 +183,57 @@ describe('deliverQueuedItem', () => {
     expect(result.reportId).toBe(4)
     expect(result.queued).toBe(false)
   })
+
+  it('retries a repaired clock in the same submission', async () => {
+    const item = makeItem()
+    const store = new Map<string, QueueItem>([[item.id, item]])
+    let calls = 0
+
+    const deps: DeliveryDeps = {
+      enqueue: async (entry) => {
+        store.set(entry.id, entry)
+      },
+      get: async (id) => store.get(id) ?? null,
+      // A repair updates the payload and leaves the record queued (D-107).
+      sync: async () => {
+        calls += 1
+
+        if (calls === 1) {
+          store.set(item.id, { ...item, clockSkewMs: 3_600_000 })
+          return summary(
+            [outcome('queued', 'Device clock is 60 min ahead of the server; retrying with the corrected observation time.')],
+            1,
+          )
+        }
+
+        store.delete(item.id)
+        return summary([outcome('sent', 'Report #12 sent.', 12)], 0)
+      },
+      online: () => true,
+    }
+
+    const result = await deliverQueuedItem(item, undefined, deps)
+
+    expect(calls).toBe(2)
+    expect(result.queued).toBe(false)
+    expect(result.failed).toBe(false)
+    expect(result.reportId).toBe(12)
+  })
+
+  it('keeps the queued message when the retry pass cannot send yet', async () => {
+    const item = makeItem()
+
+    const deps: DeliveryDeps = {
+      enqueue: async () => undefined,
+      get: async () => item,
+      // A rate-limited record is queued for later; the engine skips it.
+      sync: async () => summary([outcome('queued', 'Rate limited. Retrying in 60s.')], 1),
+      online: () => true,
+    }
+
+    const result = await deliverQueuedItem(item, undefined, deps)
+
+    expect(result.queued).toBe(true)
+    expect(result.message).toBe('Rate limited. Retrying in 60s.')
+  })
 })

@@ -34,9 +34,19 @@ export async function deliverQueuedItem(
   const summary = await deps.sync(item.userId)
   let outcome = summary.outcomes.find((entry) => entry.id === item.id)
 
-  if (outcome === undefined && summary.remaining > 0 && deps.online()) {
+  // A repair leaves the record queued for an immediate retry (D-107), and a
+  // photo rescue does the same, so a "queued" outcome still means the pass has
+  // work it has not attempted yet. One more pass sends it; a record scheduled
+  // for later is skipped by the engine and keeps its first message.
+  const retryable = outcome === undefined || outcome.status === 'queued'
+
+  if (retryable && summary.remaining > 0 && deps.online()) {
     const retrySummary = await deps.sync(item.userId)
-    outcome = retrySummary.outcomes.find((entry) => entry.id === item.id)
+    const retried = retrySummary.outcomes.find((entry) => entry.id === item.id)
+
+    if (retried !== undefined) {
+      outcome = retried
+    }
   }
 
   const remaining = await deps.get(item.id)

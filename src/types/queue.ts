@@ -49,6 +49,7 @@ interface QueueItemBase {
   nextAttemptAt: number | null
   createdAt: number
   observedAt: string
+  clockSkewMs?: number | null
 }
 
 export interface LevelQueueItem extends QueueItemBase {

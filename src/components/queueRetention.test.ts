@@ -47,6 +47,13 @@ describe('queue retention wiring', () => {
     expect(indicator).toContain('{failedCount} failed')
   })
 
+  it('shows the raw capture instant beside the save time', () => {
+    const indicator = read('./QueueIndicator.tsx')
+
+    expect(indicator).toContain('formatObservedAge(item.observedAt)')
+    expect(indicator).toContain('return `seen ${formatDuration(seconds)} ago`')
+  })
+
   it('replaces its own rejected attempt when the form is resubmitted', () => {
     const levelForm = read('./FloodReportForm.tsx')
     const impactForm = read('./FloodImpactReportForm.tsx')
