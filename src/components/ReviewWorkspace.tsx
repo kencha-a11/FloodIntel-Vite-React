@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { Permissions } from '../lib/permissions'
 import { EmptyState } from './ui'
 import { ReportDetail } from './ReportDetail'
 import { ReportList } from './ReportList'
@@ -10,13 +11,13 @@ import { ReportList } from './ReportList'
  * queue's filters survive opening and closing a report.
  */
 export function ReviewWorkspace({
-  canFilter,
+  permissions,
   selectedReportId,
   onSelect,
   onClear,
   onCorrect,
 }: {
-  canFilter: boolean
+  permissions: Permissions
   selectedReportId: number | null
   onSelect: (reportId: number) => void
   onClear: () => void
@@ -51,7 +52,7 @@ export function ReviewWorkspace({
         tabIndex={-1}
       >
         <ReportList
-          canFilter={canFilter}
+          permissions={permissions}
           selectedReportId={selectedReportId}
           onSelect={onSelect}
         />

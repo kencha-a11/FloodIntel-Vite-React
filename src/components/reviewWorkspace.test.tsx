@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AuthContext, type AuthContextValue } from '../context/AuthContext'
+import { userPermissions } from '../lib/permissions'
 import type { User } from '../types/auth'
 import { ReviewWorkspace } from './ReviewWorkspace'
-
 /*
  * Design §10: the queue stays visible while a report is open at 1024 px and
  * above; below that the view is list → detail. §11: observed and received
@@ -88,7 +88,7 @@ function render(selectedReportId: number | null): string {
   return renderToStaticMarkup(
     <AuthContext.Provider value={context}>
       <ReviewWorkspace
-        canFilter
+        permissions={userPermissions(reviewer)}
         selectedReportId={selectedReportId}
         onSelect={() => {}}
         onClear={() => {}}

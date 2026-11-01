@@ -25,6 +25,7 @@ import {
   exportReportCsv,
   reportExportFilename,
 } from '../lib/reportExport'
+import type { Permissions } from '../lib/permissions'
 import { useFeedPoll } from '../lib/useFeedPoll'
 import { useRealtimeFeed } from '../lib/useRealtimeFeed'
 import { DeadlineBar } from './DeadlineBar'
@@ -92,11 +93,11 @@ function InstantRow({
 }
 
 export function ReportList({
-  canFilter,
+  permissions,
   selectedReportId,
   onSelect,
 }: {
-  canFilter: boolean
+  permissions: Permissions
   selectedReportId: number | null
   onSelect: (reportId: number) => void
 }) {
@@ -202,7 +203,7 @@ export function ReportList({
     let cancelled = false
 
     async function loadBarangays() {
-      if (!canFilter) {
+      if (!permissions.viewAllBarangays) {
         return
       }
 
@@ -228,7 +229,7 @@ export function ReportList({
     return () => {
       cancelled = true
     }
-  }, [canFilter])
+  }, [permissions.viewAllBarangays])
 
   function updateFilter(
     key: keyof ReportFilters,
@@ -278,9 +279,9 @@ export function ReportList({
 
   return (
     <div className="report-list">
-      <h2>{canFilter ? 'Flood report queue' : 'Flood reports'}</h2>
+      <h2>{permissions.reviewReports ? 'Flood report queue' : 'Flood reports'}</h2>
 
-      {canFilter && <DeadlineBar />}
+      {permissions.reviewReports && <DeadlineBar />}
 
       <FreshnessBar
         lastSuccessAt={lastSuccessAt}
@@ -288,7 +289,9 @@ export function ReportList({
         onRefresh={refresh}
       />
 
-      {canFilter && <RealtimeLatencySummary refreshKey={latencyRefreshKey} />}
+      {permissions.reviewReports && (
+        <RealtimeLatencySummary refreshKey={latencyRefreshKey} />
+      )}
 
       {error && <Alert tone="danger">{error}</Alert>}
       {exportError && <Alert tone="danger">{exportError}</Alert>}
@@ -373,7 +376,7 @@ export function ReportList({
           </Select>
         </Field>
 
-        {canFilter && (
+        {permissions.viewAllBarangays && (
           <Field id="filter-barangay" label="Barangay">
             <Select
               value={filters.barangay_id}
@@ -406,7 +409,7 @@ export function ReportList({
         </Field>
       </div>
 
-      {canFilter && (
+      {permissions.viewAllBarangays && (
         <div className="report-export">
           <Button
             variant="secondary"

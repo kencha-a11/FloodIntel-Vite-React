@@ -1,9 +1,5 @@
-import type { UserRole } from '../types/auth'
 import type { FloodReportStatus } from '../types/report'
-
-const VALIDATE_REPORT = 'validate-report'
-const OVERRIDE_VALIDATION = 'override-validation'
-const SUBMIT_FLOOD_REPORT = 'submit-flood-report'
+import type { Permissions } from './permissions'
 
 export interface ReportActions {
   canValidate: boolean
@@ -14,22 +10,22 @@ export interface ReportActions {
 
 /**
  * The decision controls D-23 allows for this report and this caller.
- * Rejection is fenced by the officer-only route group, so it keys on the role.
+ * Rejection is fenced by the officer-only route group, so `rejectReports`
+ * carries the role rule (D-113).
  */
 export function availableReportActions(
   report: { status: FloodReportStatus },
-  abilities: readonly string[],
-  role: UserRole | undefined,
+  permissions: Permissions,
 ): ReportActions {
   const submitted = report.status === 'submitted'
   const decided =
     report.status === 'validated' || report.status === 'returned'
 
   return {
-    canValidate: submitted && abilities.includes(VALIDATE_REPORT),
-    canReturn: submitted && abilities.includes(VALIDATE_REPORT),
-    canOverride: decided && abilities.includes(OVERRIDE_VALIDATION),
-    canReject: submitted && role === 'mdrrmo_officer',
+    canValidate: submitted && permissions.reviewReports,
+    canReturn: submitted && permissions.reviewReports,
+    canOverride: decided && permissions.overrideValidation,
+    canReject: submitted && permissions.rejectReports,
   }
 }
 
@@ -42,12 +38,12 @@ export function canFileCorrection(
     status: FloodReportStatus
     superseded_by_id?: number | null
   },
-  abilities: readonly string[],
+  permissions: Permissions,
 ): boolean {
   return (
     report.status === 'returned' &&
     (report.superseded_by_id ?? null) === null &&
-    abilities.includes(SUBMIT_FLOOD_REPORT)
+    permissions.fileFloodReport
   )
 }
 

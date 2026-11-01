@@ -1,4 +1,5 @@
 import type { AccessInterface, User } from '../types/auth'
+import { userPermissions, type Permissions } from './permissions'
 
 /*
  * The interface returned at sign-in chooses the shell's sections and its
@@ -18,16 +19,8 @@ export interface ViewAccess {
   iface: AccessInterface
   sections: ViewSection[]
   defaultView: AppView
-  canReview: boolean
-  canFileImpact: boolean
+  permissions: Permissions
 }
-
-const ABILITY_SUBMIT_FLOOD_REPORT = 'submit-flood-report'
-const ABILITY_SUBMIT_IMPACT_REPORT = 'submit-impact-report'
-const ABILITY_VIEW_OWN_BARANGAY = 'view-own-barangay'
-const ABILITY_VIEW_ALL_BARANGAYS = 'view-all-barangays'
-const ABILITY_MANAGE_USERS = 'manage-users'
-const ABILITY_VIEW_VALIDATED_REPORTS = 'view-validated-reports'
 
 const FIELD_ORDER: readonly AppView[] = [
   'capture',
@@ -60,31 +53,27 @@ function sectionLabel(view: AppView, canReview: boolean): string {
 }
 
 export function viewAccess(
-  user: Pick<User, 'interface' | 'abilities'>,
+  user: Pick<User, 'interface' | 'abilities' | 'role'>,
 ): ViewAccess {
-  const abilities = user.abilities ?? []
-  const canReview =
-    abilities.includes(ABILITY_VIEW_ALL_BARANGAYS) ||
-    abilities.includes(ABILITY_MANAGE_USERS)
-  const canFileImpact = abilities.includes(ABILITY_SUBMIT_IMPACT_REPORT)
+  const permissions = userPermissions(user)
 
   // The report list is reachable for every account: the server scopes the
   // rows by barangay or to the account's own reports (FR-106).
   const reachable = new Set<AppView>(['reports'])
 
-  if (abilities.includes(ABILITY_SUBMIT_FLOOD_REPORT)) {
+  if (permissions.fileFloodReport) {
     reachable.add('capture')
   }
 
-  if (canFileImpact || abilities.includes(ABILITY_VIEW_OWN_BARANGAY)) {
+  if (permissions.fileImpactReport || permissions.viewOwnBarangay) {
     reachable.add('impact')
   }
 
-  if (abilities.includes(ABILITY_VIEW_VALIDATED_REPORTS)) {
+  if (permissions.viewValidatedFeed) {
     reachable.add('map')
   }
 
-  if (user.interface === 'command_center') {
+  if (permissions.manageTokens) {
     reachable.add('tokens')
   }
 
@@ -92,7 +81,10 @@ export function viewAccess(
     user.interface === 'command_center' ? COMMAND_ORDER : FIELD_ORDER
   const sections = order
     .filter((view) => reachable.has(view))
-    .map((view) => ({ view, label: sectionLabel(view, canReview) }))
+    .map((view) => ({
+      view,
+      label: sectionLabel(view, permissions.reviewReports),
+    }))
   const defaultView: AppView =
     user.interface === 'field_reporter' && reachable.has('capture')
       ? 'capture'
@@ -102,8 +94,7 @@ export function viewAccess(
     iface: user.interface,
     sections,
     defaultView,
-    canReview,
-    canFileImpact,
+    permissions,
   }
 }
 

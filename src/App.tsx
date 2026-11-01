@@ -15,7 +15,6 @@ import { PwaUpdatePrompt } from './components/PwaUpdatePrompt'
 import { QueueIndicator } from './components/QueueIndicator'
 import { readEmailVerificationStatus } from './lib/emailVerification'
 import {
-  isViewReachable,
   resolveView,
   viewAccess,
   type AppView,
@@ -129,12 +128,14 @@ function App() {
       )}
 
       {activeView === 'impact' && (
-        <ImpactReportsView canFileImpact={access.canFileImpact} />
+        <ImpactReportsView
+          canFileImpact={access.permissions.fileImpactReport}
+        />
       )}
 
       {activeView === 'reports' && (
         <ReviewWorkspace
-          canFilter={access.canReview}
+          permissions={access.permissions}
           selectedReportId={selectedReportId}
           onSelect={setSelectedReportId}
           onClear={() => setSelectedReportId(null)}
@@ -147,7 +148,9 @@ function App() {
 
       {activeView === 'map' && (
         <Suspense fallback={<p className="muted">Loading map…</p>}>
-          <MapView canViewValidatedFeed={isViewReachable(access, 'map')} />
+          <MapView
+            canViewValidatedFeed={access.permissions.viewValidatedFeed}
+          />
         </Suspense>
       )}
 

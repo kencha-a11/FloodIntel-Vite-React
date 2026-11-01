@@ -1,23 +1,35 @@
 import { describe, expect, it } from 'vitest'
+import { userPermissions } from './permissions'
 import {
   availableReportActions,
   canFileCorrection,
   overrideTargets,
 } from './reportActions'
 
-const STAFF = ['validate-report', 'consolidate-reports']
-const OFFICER = [
-  'validate-report',
-  'override-validation',
-  'manage-users',
-]
-const TANOD = ['submit-flood-report', 'view-own-barangay']
+const STAFF = userPermissions({
+  interface: 'command_center',
+  role: 'mdrrmo_staff',
+  abilities: ['validate-report', 'consolidate-reports'],
+})
+const OFFICER = userPermissions({
+  interface: 'command_center',
+  role: 'mdrrmo_officer',
+  abilities: ['validate-report', 'override-validation', 'manage-users'],
+})
+const TANOD = userPermissions({
+  interface: 'field_reporter',
+  role: 'barangay_tanod',
+  abilities: ['submit-flood-report', 'view-own-barangay'],
+})
+const NO_ABILITIES = userPermissions({
+  interface: 'field_reporter',
+  role: 'rescue_leader',
+  abilities: [],
+})
 
 describe('availableReportActions', () => {
   it('offers validate and return to staff on a submitted report', () => {
-    expect(
-      availableReportActions({ status: 'submitted' }, STAFF, 'mdrrmo_staff'),
-    ).toEqual({
+    expect(availableReportActions({ status: 'submitted' }, STAFF)).toEqual({
       canValidate: true,
       canReturn: true,
       canOverride: false,
@@ -27,7 +39,7 @@ describe('availableReportActions', () => {
 
   it('offers reject and validate to an officer on a submitted report', () => {
     expect(
-      availableReportActions({ status: 'submitted' }, OFFICER, 'mdrrmo_officer'),
+      availableReportActions({ status: 'submitted' }, OFFICER),
     ).toMatchObject({
       canValidate: true,
       canReject: true,
@@ -36,16 +48,14 @@ describe('availableReportActions', () => {
   })
 
   it('offers only override to an officer once a decision exists', () => {
-    expect(
-      availableReportActions({ status: 'validated' }, OFFICER, 'mdrrmo_officer'),
-    ).toEqual({
+    expect(availableReportActions({ status: 'validated' }, OFFICER)).toEqual({
       canValidate: false,
       canReturn: false,
       canOverride: true,
       canReject: false,
     })
     expect(
-      availableReportActions({ status: 'returned' }, OFFICER, 'mdrrmo_officer'),
+      availableReportActions({ status: 'returned' }, OFFICER),
     ).toMatchObject({
       canOverride: true,
       canValidate: false,
@@ -53,16 +63,14 @@ describe('availableReportActions', () => {
   })
 
   it('offers nothing to a field reporter or on a rejected report', () => {
-    expect(
-      availableReportActions({ status: 'submitted' }, TANOD, 'barangay_tanod'),
-    ).toEqual({
+    expect(availableReportActions({ status: 'submitted' }, TANOD)).toEqual({
       canValidate: false,
       canReturn: false,
       canOverride: false,
       canReject: false,
     })
     expect(
-      availableReportActions({ status: 'rejected' }, OFFICER, 'mdrrmo_officer'),
+      availableReportActions({ status: 'rejected' }, OFFICER),
     ).toEqual({
       canValidate: false,
       canReturn: false,
@@ -75,15 +83,21 @@ describe('availableReportActions', () => {
     expect(
       availableReportActions(
         { status: 'submitted' },
-        ['validate-report', 'manage-users'],
-        'mdrrmo_staff',
+        userPermissions({
+          interface: 'command_center',
+          role: 'mdrrmo_staff',
+          abilities: ['validate-report', 'manage-users'],
+        }),
       ),
     ).toMatchObject({ canReject: false })
     expect(
       availableReportActions(
         { status: 'submitted' },
-        ['validate-report'],
-        'mdrrmo_officer',
+        userPermissions({
+          interface: 'command_center',
+          role: 'mdrrmo_officer',
+          abilities: ['validate-report'],
+        }),
       ),
     ).toMatchObject({ canReject: true })
   })
@@ -116,7 +130,10 @@ describe('canFileCorrection', () => {
       canFileCorrection({ status: 'returned', superseded_by_id: null }, OFFICER),
     ).toBe(false)
     expect(
-      canFileCorrection({ status: 'returned', superseded_by_id: null }, []),
+      canFileCorrection(
+        { status: 'returned', superseded_by_id: null },
+        NO_ABILITIES,
+      ),
     ).toBe(false)
   })
 })

@@ -32,13 +32,13 @@ describe('consolidation deadline panel', () => {
     expect(bar).toContain('describeBasis(payload.pending.basis)')
   })
 
-  it('shows the panel to the command center only, above the filter bar', () => {
+  it('shows the panel to reviewers only, above the filter bar', () => {
     const list = read('./ReportList.tsx')
 
-    expect(list).toContain('{canFilter && <DeadlineBar />}')
-    expect(list.indexOf('{canFilter && <DeadlineBar />}')).toBeLessThan(
-      list.indexOf('<div className="filter-bar">'),
-    )
+    expect(list).toContain('{permissions.reviewReports && <DeadlineBar />}')
+    expect(
+      list.indexOf('{permissions.reviewReports && <DeadlineBar />}'),
+    ).toBeLessThan(list.indexOf('<div className="filter-bar">'))
   })
 
   it('offers the alert-level filter the queue endpoint accepts', () => {

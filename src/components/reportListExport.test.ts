@@ -40,10 +40,10 @@ describe('report queue export wiring', () => {
     expect(list).toContain('exportNoticeText(filters, result.count)')
   })
 
-  it('shows the control to the command center only and disables it in flight', () => {
+  it('shows the control where every barangay is visible and disables it in flight', () => {
     const list = read('./ReportList.tsx')
 
-    expect(list).toContain('{canFilter && (')
+    expect(list).toContain('{permissions.viewAllBarangays && (')
     expect(list).toContain('disabled={exporting}')
     expect(list).toContain('aria-busy={exporting}')
     expect(list).toContain("exporting ? 'Preparing CSV…' : 'Export CSV'")

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
 import { AuthApiError, getStoredToken } from '../lib/authApi'
 import { NOT_RECORDED, formatInstantWithAge } from '../lib/dateTime'
+import { userPermissions } from '../lib/permissions'
 import * as reportApi from '../lib/reportApi'
 import {
   DECISION_CANCEL_LABEL,
@@ -292,16 +293,19 @@ export function ReportDetail({
     })
   }
 
+  const permissions = user === null ? null : userPermissions(user)
   const actions =
-    report === null
+    report === null || permissions === null
       ? null
-      : availableReportActions(report, user?.abilities ?? [], user?.role)
+      : availableReportActions(report, permissions)
 
   const targets = report === null ? [] : overrideTargets(report.status)
   const priorReport = report?.supersedes ?? null
   const successorId = report?.superseded_by_id ?? null
   const canCorrect =
-    report !== null && canFileCorrection(report, user?.abilities ?? [])
+    report !== null &&
+    permissions !== null &&
+    canFileCorrection(report, permissions)
 
   return (
     <div className="report-detail">

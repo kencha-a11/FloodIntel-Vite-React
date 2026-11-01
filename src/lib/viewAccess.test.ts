@@ -6,7 +6,7 @@ import {
   type AppView,
   type ViewAccess,
 } from './viewAccess'
-import type { AccessInterface, User } from '../types/auth'
+import type { AccessInterface, User, UserRole } from '../types/auth'
 
 const OFFICER = [
   'validate-report',
@@ -34,9 +34,10 @@ const RESCUE_LEADER = ['view-validated-reports', 'update-rescue-status']
 function account(
   iface: AccessInterface,
   abilities: string[],
+  role: UserRole,
   overrides: Partial<User> = {},
-): Pick<User, 'interface' | 'abilities'> {
-  return { interface: iface, abilities, ...overrides }
+): Pick<User, 'interface' | 'abilities' | 'role'> {
+  return { interface: iface, abilities, role, ...overrides }
 }
 
 function views(access: ViewAccess): AppView[] {
@@ -45,58 +46,73 @@ function views(access: ViewAccess): AppView[] {
 
 describe('viewAccess', () => {
   it('lands a command-center account on the review queue', () => {
-    const access = viewAccess(account('command_center', OFFICER))
+    const access = viewAccess(
+      account('command_center', OFFICER, 'mdrrmo_officer'),
+    )
 
     expect(access.iface).toBe('command_center')
     expect(access.defaultView).toBe('reports')
     expect(views(access)).toEqual(['reports', 'map', 'tokens'])
     expect(access.sections[0].label).toBe('Review queue')
-    expect(access.canReview).toBe(true)
-    expect(access.canFileImpact).toBe(false)
+    expect(access.permissions.reviewReports).toBe(true)
+    expect(access.permissions.fileImpactReport).toBe(false)
   })
 
   it('gives the staff account the same sections and no filing', () => {
-    const access = viewAccess(account('command_center', STAFF))
+    const access = viewAccess(account('command_center', STAFF, 'mdrrmo_staff'))
 
     expect(views(access)).toEqual(['reports', 'map', 'tokens'])
-    expect(access.canFileImpact).toBe(false)
+    expect(access.permissions.fileImpactReport).toBe(false)
+    expect(access.permissions.reviewReports).toBe(true)
   })
 
   it('lands a captain on capture and keeps the barangay views', () => {
-    const access = viewAccess(account('field_reporter', CAPTAIN))
+    const access = viewAccess(
+      account('field_reporter', CAPTAIN, 'barangay_captain'),
+    )
 
     expect(access.defaultView).toBe('capture')
     expect(views(access)).toEqual(['capture', 'impact', 'reports'])
     expect(access.sections[2].label).toBe('Reports')
-    expect(access.canReview).toBe(false)
-    expect(access.canFileImpact).toBe(true)
+    expect(access.permissions.reviewReports).toBe(false)
+    expect(access.permissions.fileImpactReport).toBe(true)
   })
 
   it('keeps the tanod out of filing an impact report but in its list', () => {
-    const access = viewAccess(account('field_reporter', TANOD))
+    const access = viewAccess(account('field_reporter', TANOD, 'barangay_tanod'))
 
     expect(views(access)).toEqual(['capture', 'impact', 'reports'])
-    expect(access.canFileImpact).toBe(false)
+    expect(access.permissions.fileImpactReport).toBe(false)
+    expect(access.permissions.viewOwnBarangay).toBe(true)
   })
 
   it('lands the rescue leader on the report list with the map and no capture', () => {
-    const access = viewAccess(account('field_reporter', RESCUE_LEADER))
+    const access = viewAccess(
+      account('field_reporter', RESCUE_LEADER, 'rescue_leader'),
+    )
 
     expect(access.defaultView).toBe('reports')
     expect(views(access)).toEqual(['reports', 'map'])
-    expect(access.canFileImpact).toBe(false)
+    expect(access.permissions.fileImpactReport).toBe(false)
   })
 
   it('never offers token management to a field account', () => {
-    for (const abilities of [CAPTAIN, TANOD, RESCUE_LEADER]) {
-      expect(viewAccess(account('field_reporter', abilities)).sections).not.toContainEqual(
+    for (const [abilities, role] of [
+      [CAPTAIN, 'barangay_captain'],
+      [TANOD, 'barangay_tanod'],
+      [RESCUE_LEADER, 'rescue_leader'],
+    ] as const) {
+      const access = viewAccess(account('field_reporter', abilities, role))
+
+      expect(access.sections).not.toContainEqual(
         expect.objectContaining({ view: 'tokens' }),
       )
+      expect(access.permissions.manageTokens).toBe(false)
     }
   })
 
   it('offers the report list alone when no ability is held', () => {
-    const access = viewAccess(account('field_reporter', []))
+    const access = viewAccess(account('field_reporter', [], 'barangay_tanod'))
 
     expect(views(access)).toEqual(['reports'])
     expect(access.defaultView).toBe('reports')
@@ -104,15 +120,23 @@ describe('viewAccess', () => {
 
   it('ignores abilities the server never granted', () => {
     const access = viewAccess(
-      account('field_reporter', ['manage-everything', 'monitor-dashboard']),
+      account(
+        'field_reporter',
+        ['manage-everything', 'monitor-dashboard'],
+        'barangay_tanod',
+      ),
     )
 
     expect(views(access)).toEqual(['reports'])
   })
 
   it('reports reachability from the section list, not a second rule', () => {
-    const officer = viewAccess(account('command_center', OFFICER))
-    const captain = viewAccess(account('field_reporter', CAPTAIN))
+    const officer = viewAccess(
+      account('command_center', OFFICER, 'mdrrmo_officer'),
+    )
+    const captain = viewAccess(
+      account('field_reporter', CAPTAIN, 'barangay_captain'),
+    )
 
     expect(isViewReachable(officer, 'map')).toBe(true)
     expect(isViewReachable(officer, 'capture')).toBe(false)
@@ -124,14 +148,20 @@ describe('viewAccess', () => {
 
 describe('resolveView', () => {
   it('keeps a requested section the account may open', () => {
-    const access = viewAccess(account('field_reporter', CAPTAIN))
+    const access = viewAccess(
+      account('field_reporter', CAPTAIN, 'barangay_captain'),
+    )
 
     expect(resolveView(access, 'impact')).toBe('impact')
   })
 
   it('falls back to the default instead of rendering a section it cannot open', () => {
-    const officer = viewAccess(account('command_center', OFFICER))
-    const captain = viewAccess(account('field_reporter', CAPTAIN))
+    const officer = viewAccess(
+      account('command_center', OFFICER, 'mdrrmo_officer'),
+    )
+    const captain = viewAccess(
+      account('field_reporter', CAPTAIN, 'barangay_captain'),
+    )
 
     expect(resolveView(officer, 'capture')).toBe('reports')
     expect(resolveView(captain, 'map')).toBe('capture')
@@ -139,8 +169,10 @@ describe('resolveView', () => {
   })
 
   it('resolves no request to the interface default', () => {
-    const officer = viewAccess(account('command_center', STAFF))
-    const leader = viewAccess(account('field_reporter', RESCUE_LEADER))
+    const officer = viewAccess(account('command_center', STAFF, 'mdrrmo_staff'))
+    const leader = viewAccess(
+      account('field_reporter', RESCUE_LEADER, 'rescue_leader'),
+    )
 
     expect(resolveView(officer, null)).toBe('reports')
     expect(resolveView(leader, null)).toBe('reports')
