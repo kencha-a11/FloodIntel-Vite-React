@@ -210,7 +210,7 @@ async function sendItem(
   item: QueueItem,
 ): Promise<{ id: number }> {
   if (item.kind === 'impact') {
-    return reportApi.submitImpactReport(token, item.payload)
+    return reportApi.submitImpactReport(token, item.payload, item.id)
   }
 
   const photo = new Blob([item.photo], { type: item.photoType })
@@ -480,8 +480,9 @@ export async function runSync(
       }
 
       if (err.status === 422) {
+        // Both kinds send `reported_at`, and both are repaired the same way
+        // (D-107).
         const clockRejected =
-          item.kind === 'level' &&
           err.errors.reported_at !== undefined &&
           item.payload.reported_at !== null
 

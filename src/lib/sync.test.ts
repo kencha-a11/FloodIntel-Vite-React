@@ -13,7 +13,11 @@ import type { SyncDeps } from './sync'
 import { AuthApiError } from './http'
 import { LAST_RESORT_PHOTO_BYTES } from './floodLevels'
 import { AUTH_WINDOW_MS } from './session'
-import type { LevelQueueItem, QueueItem } from '../types/queue'
+import type {
+  ImpactQueueItem,
+  LevelQueueItem,
+  QueueItem,
+} from '../types/queue'
 import type { FloodReport } from '../types/report'
 
 const NOW = 1_700_000_000_000
@@ -35,6 +39,34 @@ function makeItem(overrides: Partial<LevelQueueItem> = {}): LevelQueueItem {
     photoType: 'image/jpeg',
     photoName: 'flood.jpg',
     photoBytes: 8,
+    status: 'queued',
+    attempts: 0,
+    lastError: null,
+    nextAttemptAt: null,
+    createdAt: 1,
+    observedAt: '2026-10-21T02:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function makeImpactItem(
+  overrides: Partial<ImpactQueueItem> = {},
+): ImpactQueueItem {
+  return {
+    id: 'item-1',
+    userId: 1,
+    kind: 'impact',
+    payload: {
+      event_id: 7,
+      families: 12,
+      individuals: 48,
+      remarks: null,
+      reported_at: '2026-10-21T02:00:00.000Z',
+    },
+    photo: new ArrayBuffer(0),
+    photoType: 'application/json',
+    photoName: '',
+    photoBytes: 0,
     status: 'queued',
     attempts: 0,
     lastError: null,
@@ -330,6 +362,55 @@ describe('runSync', () => {
     expect(item?.status).toBe('failed')
     expect(item?.lastError).toContain('device clock cannot be corrected')
     expect(summary.failed).toBe(1)
+  })
+
+  it('repairs an impact report whose observation time is ahead of the server', async () => {
+    const SKEW_MS = 60 * 60_000
+    const serverNow = NOW - SKEW_MS
+    const observedAt = new Date(NOW - 60_000).toISOString()
+    const correctedAt = new Date(serverNow - 60_000).toISOString()
+    let calls = 0
+
+    const harness = createHarness([makeImpactItem({ observedAt })], {
+      send: async (_token, item) => {
+        calls += 1
+
+        if (item.kind !== 'impact') {
+          throw new Error('expected an impact item')
+        }
+
+        const reportedAt = item.payload.reported_at
+
+        if (reportedAt === null || Date.parse(reportedAt) > serverNow) {
+          throw new AuthApiError(
+            'The reported at field must not be in the future.',
+            422,
+            { reported_at: ['The reported at field must not be in the future.'] },
+            null,
+            serverNow,
+          )
+        }
+
+        return { id: 7 }
+      },
+    })
+
+    const first = await runSync(1, harness.deps)
+    const repaired = harness.store.get('item-1')
+
+    expect(calls).toBe(1)
+    expect(first.sent).toBe(0)
+    expect(first.outcomes[0].status).toBe('queued')
+    expect(repaired?.kind).toBe('impact')
+    expect(repaired?.payload.reported_at).toBe(correctedAt)
+    expect(repaired?.clockSkewMs).toBe(SKEW_MS)
+    expect(repaired?.status).toBe('queued')
+
+    const second = await runSync(1, harness.deps)
+
+    expect(calls).toBe(2)
+    expect(second.sent).toBe(1)
+    expect(harness.store.size).toBe(0)
   })
 
   it('clamps a corrected instant to the server clock', () => {

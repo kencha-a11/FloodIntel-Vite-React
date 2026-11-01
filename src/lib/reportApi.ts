@@ -110,8 +110,10 @@ export function submitReport(
 export function submitImpactReport(
   token: string,
   report: ImpactReportInput,
+  clientUuid: string,
 ): Promise<FloodImpactReport> {
   const body: Record<string, unknown> = {
+    client_uuid: clientUuid,
     event_id: report.event_id,
     families: report.families,
     individuals: report.individuals,
