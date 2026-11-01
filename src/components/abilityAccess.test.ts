@@ -23,6 +23,7 @@ const ABILITY_LITERALS = [
   'view-validated-reports',
   'submit-flood-report',
   'submit-impact-report',
+  'record-access-tag',
   'view-own-barangay',
   'update-rescue-status',
 ]
@@ -77,6 +78,9 @@ describe('permission-derived element visibility', () => {
     )
     expect(app).toContain(
       'canViewValidatedFeed={access.permissions.viewValidatedFeed}',
+    )
+    expect(app).toContain(
+      'canRecordTag={access.permissions.recordAccessTag}',
     )
 
     expect(workspace).toContain('permissions: Permissions')

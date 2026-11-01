@@ -10,6 +10,7 @@ import type { User } from '../types/auth'
 export interface Permissions {
   fileFloodReport: boolean
   fileImpactReport: boolean
+  recordAccessTag: boolean
   viewOwnBarangay: boolean
   viewAllBarangays: boolean
   reviewReports: boolean
@@ -22,6 +23,7 @@ export interface Permissions {
 
 const SUBMIT_FLOOD_REPORT = 'submit-flood-report'
 const SUBMIT_IMPACT_REPORT = 'submit-impact-report'
+const RECORD_ACCESS_TAG = 'record-access-tag'
 const VIEW_OWN_BARANGAY = 'view-own-barangay'
 const VIEW_ALL_BARANGAYS = 'view-all-barangays'
 const VALIDATE_REPORT = 'validate-report'
@@ -37,6 +39,9 @@ export function userPermissions(
   return {
     fileFloodReport: abilities.includes(SUBMIT_FLOOD_REPORT),
     fileImpactReport: abilities.includes(SUBMIT_IMPACT_REPORT),
+    // FR-118 grants tag recording to the two field roles, which are exactly
+    // the roles holding the flood-report ability; the server checks it again.
+    recordAccessTag: abilities.includes(RECORD_ACCESS_TAG),
     viewOwnBarangay: abilities.includes(VIEW_OWN_BARANGAY),
     viewAllBarangays: abilities.includes(VIEW_ALL_BARANGAYS),
     reviewReports: abilities.includes(VALIDATE_REPORT),

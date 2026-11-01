@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+import type { AccessTagInput } from '../types/accessTag'
 import type {
   ImpactReportPayload,
   LevelReportPayload,
@@ -38,6 +39,11 @@ export interface QueueContextValue {
   submitImpactReport: (
     input: SubmitImpactReportInput,
   ) => Promise<SubmitReportResult>
+  /**
+   * Queues a tag that carries its own capture instant, so the item and the
+   * payload can never disagree about when the place was observed (FR-117).
+   */
+  submitTag: (payload: AccessTagInput) => Promise<SubmitReportResult>
   retry: (id: string) => Promise<void>
   retryAll: () => Promise<void>
   discard: (id: string) => Promise<void>

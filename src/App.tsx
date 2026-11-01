@@ -123,6 +123,7 @@ function App() {
       {activeView === 'capture' && (
         <FloodReportForm
           correctsReportId={correctsReportId}
+          canRecordTag={access.permissions.recordAccessTag}
           onCorrectionCleared={() => setCorrectsReportId(null)}
           onViewReports={() => setView('reports')}
         />

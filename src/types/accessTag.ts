@@ -1,16 +1,10 @@
 import type { UserRole } from './auth'
 
-/** FR-112's closed taxonomy; display text comes from the server's `type_label`. */
-export type AccessTagType =
-  | 'narrow_alley'
-  | 'no_vehicle_access'
-  | 'stairs_or_steep'
-  | 'structurally_blocked'
-  | 'other'
-
 /** The capture payload the queue stores and transmits (FR-114). */
 export interface AccessTagInput {
-  type: AccessTagType
+  // A string, not a union: the closed set lives in the server's enum, and a
+  // new value must not require a client release (FR-112, NFR-42).
+  type: string
   note: string | null
   landmark: string | null
   latitude: number
@@ -18,6 +12,13 @@ export interface AccessTagInput {
   gps_accuracy: number | null
   address: string | null
   observed_at: string
+}
+
+/** One published taxonomy value with the label an interface renders (NFR-42). */
+export interface AccessTagTypeOption {
+  value: string
+  label: string
+  requires_note: boolean
 }
 
 /** The stored tag as `AccessTagResource` returns it. */
@@ -30,7 +31,7 @@ export interface AccessTag {
     last_name: string
     role: UserRole
   }
-  type: AccessTagType
+  type: string
   type_label: string
   landmark: string | null
   note: string | null

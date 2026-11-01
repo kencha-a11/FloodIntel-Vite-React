@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   EmptyState,
   Field,
   SegmentedControl,
@@ -144,6 +145,58 @@ describe('SegmentedControl', () => {
     expect(html).toContain('aria-invalid="true"')
     expect(html).toContain('aria-describedby="level-error"')
     expect(html).toContain('id="level-error"')
+  })
+})
+
+describe('Checkbox', () => {
+  it('binds the label to the input and reflects the checked state', () => {
+    const html = render(
+      <Checkbox
+        id="tag-enabled"
+        checked
+        onChange={() => {}}
+        label="Record an access tag"
+      />,
+    )
+
+    expect(html).toContain('for="tag-enabled"')
+    expect(html).toContain('id="tag-enabled"')
+    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('checked=""')
+    expect(html).toContain('Record an access tag')
+  })
+
+  it('leaves a cleared box unchecked and undescribed', () => {
+    const html = render(
+      <Checkbox
+        id="tag-enabled"
+        checked={false}
+        onChange={() => {}}
+        label="Record an access tag"
+      />,
+    )
+
+    expect(html).not.toContain('checked')
+    expect(html).not.toContain('aria-invalid')
+    expect(html).not.toContain('aria-describedby')
+  })
+
+  it('marks the input invalid and describes it with hint and error', () => {
+    const html = render(
+      <Checkbox
+        id="consent"
+        checked={false}
+        onChange={() => {}}
+        label="I agree"
+        hint="Read once"
+        error="Required"
+      />,
+    )
+
+    expect(html).toContain('aria-invalid="true"')
+    expect(html).toContain('aria-describedby="consent-hint consent-error"')
+    expect(html).toContain('id="consent-hint"')
+    expect(html).toContain('id="consent-error"')
   })
 })
 

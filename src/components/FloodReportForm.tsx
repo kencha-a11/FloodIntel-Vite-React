@@ -1,10 +1,21 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../context/useAuth'
+import { AccessTagStep } from './AccessTagStep'
 import { CameraCapture } from './CameraCapture'
 import { Alert, Button, Field, Select, Textarea, TextInput } from './ui'
 import { useQueue } from '../context/useQueue'
 import { ALERT_LEVELS, FLOOD_TYPES, floodTypeLabel } from '../lib/alertLevels'
+import {
+  EMPTY_TAG_DRAFT,
+  resolveTagDraft,
+} from '../lib/accessTagDraft'
+import type {
+  TagDraft,
+  TagDraftErrors,
+  TagDraftResolution,
+} from '../lib/accessTagDraft'
+import { useAccessTagTypes } from '../lib/useAccessTagTypes'
 import { compressPhoto } from '../lib/photo'
 import type { PhotoProgress } from '../lib/photo'
 import { setDraftDirty } from '../lib/draftGuard'
@@ -12,6 +23,7 @@ import { getStoredToken } from '../lib/http'
 import { reverseGeocode } from '../lib/geocode'
 import type { FieldErrors } from '../types/auth'
 import type { AlertLevel, FloodType } from '../types/report'
+import type { SubmitReportResult } from '../types/queue'
 
 // The pin map is MapLibre: loaded only once a fix exists, so a reporter never
 // downloads the map stack before the location is known (D-115).
@@ -43,6 +55,18 @@ interface GpsFix {
 type FormStep = 'form' | 'confirm' | 'success'
 
 type AddressStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
+
+/**
+ * What the success screen says about the optional tag. `pending` is the moment
+ * between the report's answer and the tag's own, and exists so a slow tag can
+ * never delay the report's confirmation (FR-116, D-130).
+ */
+interface TagOutcome {
+  status: 'pending' | 'recorded' | 'queued' | 'failed' | 'skipped'
+  message: string
+}
+
+type ReadyTag = Extract<TagDraftResolution, { status: 'ready' }>
 
 function describeAddressStatus(
   status: AddressStatus,
@@ -107,17 +131,53 @@ function formatAccuracy(accuracy: number | null): string {
   return `±${Math.round(accuracy)} m accuracy`
 }
 
+function tagAlertTone(status: TagOutcome['status']): 'info' | 'success' | 'warning' {
+  if (status === 'recorded') {
+    return 'success'
+  }
+
+  return status === 'failed' ? 'warning' : 'info'
+}
+
+function incompleteTagMessage(errors: TagDraftErrors): string {
+  const reason = errors.type ?? errors.note ?? 'The details are incomplete.'
+
+  return `The access tag was not recorded. ${reason} The report is unaffected.`
+}
+
+function tagOutcomeFrom(result: SubmitReportResult): TagOutcome {
+  if (result.failed) {
+    return {
+      status: 'failed',
+      message: `The access tag was not recorded. ${result.message} The report is unaffected.`,
+    }
+  }
+
+  if (result.queued) {
+    return {
+      status: 'queued',
+      message:
+        'Access tag saved on this device. It will send when the connection returns.',
+    }
+  }
+
+  return { status: 'recorded', message: result.message }
+}
+
 export function FloodReportForm({
   correctsReportId = null,
+  canRecordTag = false,
   onCorrectionCleared,
   onViewReports,
 }: {
   correctsReportId?: number | null
+  canRecordTag?: boolean
   onCorrectionCleared?: () => void
   onViewReports: () => void
 }) {
   const { user } = useAuth()
-  const { submitLevelReport } = useQueue()
+  const { submitLevelReport, submitTag } = useQueue()
+  const tagTypes = useAccessTagTypes(canRecordTag)
   const [step, setStep] = useState<FormStep>('form')
   const [alertLevel, setAlertLevel] = useState<AlertLevel | ''>('')
   const [floodType, setFloodType] = useState<FloodType | ''>('')
@@ -144,10 +204,14 @@ export function FloodReportForm({
     queued: boolean
     reportId: number | null
     message: string
+    tag: TagOutcome | null
   } | null>(null)
   const [failedQueueId, setFailedQueueId] = useState<string | null>(null)
+  const [tagDraft, setTagDraft] = useState<TagDraft>(EMPTY_TAG_DRAFT)
+  const [tagErrors, setTagErrors] = useState<TagDraftErrors>({})
   const photoUrlRef = useRef<string | null>(null)
   const addressAttempt = useRef(0)
+  const tagAttempt = useRef(0)
 
   const resolveAddress = useCallback((fix: GpsFix): void => {
     const attempt = addressAttempt.current + 1
@@ -244,6 +308,7 @@ export function FloodReportForm({
       alertLevel !== '' ||
       notes.trim() !== '' ||
       photo !== null ||
+      tagDraft.enabled ||
       step === 'confirm'
 
     setDraftDirty(hasDraft && step !== 'success')
@@ -251,7 +316,7 @@ export function FloodReportForm({
     return () => {
       setDraftDirty(false)
     }
-  }, [alertLevel, notes, photo, step])
+  }, [alertLevel, notes, photo, tagDraft, step])
 
   function refreshLocation(): void {
     setIsLocating(true)
@@ -361,6 +426,11 @@ export function FloodReportForm({
 
     setErrors(next)
 
+    // The step never stops the report (FR-116); its messages are set here so
+    // a reporter who enabled the tag can see what is missing on the way past.
+    const tag = resolveTagDraft(tagDraft, tagTypes.options)
+    setTagErrors(tag.status === 'incomplete' ? tag.errors : {})
+
     return Object.keys(next).length === 0
   }
 
@@ -393,6 +463,10 @@ export function FloodReportForm({
     const observedAt = new Date(
       Math.min(gps.capturedAt, Date.now()),
     ).toISOString()
+    const tag = canRecordTag
+      ? resolveTagDraft(tagDraft, tagTypes.options)
+      : ({ status: 'skipped' } as const)
+    const attempt = tagAttempt.current
 
     try {
       const result = await submitLevelReport({
@@ -426,10 +500,26 @@ export function FloodReportForm({
         queued: result.queued,
         reportId: result.reportId,
         message: result.message,
+        // The report's answer is shown first; the tag is attempted after it,
+        // so a slow or failing tag never delays or changes that answer
+        // (FR-116, D-130).
+        tag:
+          tag.status === 'ready'
+            ? { status: 'pending', message: 'Recording the access tag…' }
+            : tag.status === 'incomplete'
+              ? {
+                  status: 'skipped',
+                  message: incompleteTagMessage(tag.errors),
+                }
+              : null,
       })
       setStep('success')
       setDraftDirty(false)
       onCorrectionCleared?.()
+
+      if (tag.status === 'ready') {
+        void recordTag(tag, gps, observedAt, attempt)
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Unable to save the report.',
@@ -437,6 +527,48 @@ export function FloodReportForm({
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  async function recordTag(
+    tag: ReadyTag,
+    fix: GpsFix,
+    observedAt: string,
+    attempt: number,
+  ): Promise<void> {
+    // The tag reuses the report's fix and capture instant rather than asking
+    // for a second one (FR-116, FR-117).
+    try {
+      const result = await submitTag({
+        type: tag.input.type,
+        note: tag.input.note,
+        landmark: tag.input.landmark,
+        latitude: fix.latitude,
+        longitude: fix.longitude,
+        gps_accuracy: fix.accuracy,
+        address: addressStatus === 'ready' ? address : null,
+        observed_at: observedAt,
+      })
+
+      applyTagOutcome(attempt, tagOutcomeFrom(result))
+    } catch (err) {
+      applyTagOutcome(attempt, {
+        status: 'failed',
+        message: `The access tag was not recorded. ${
+          err instanceof Error ? err.message : 'Try again from the queue.'
+        } The report is unaffected.`,
+      })
+    }
+  }
+
+  function applyTagOutcome(attempt: number, outcome: TagOutcome): void {
+    // A reset form is a new capture; a late tag line must not land on it.
+    if (tagAttempt.current !== attempt) {
+      return
+    }
+
+    setSubmitResult((current) =>
+      current === null ? current : { ...current, tag: outcome },
+    )
   }
 
   function resetForm(): void {
@@ -457,6 +589,9 @@ export function FloodReportForm({
     setServerFieldErrors({})
     setSubmitResult(null)
     setFailedQueueId(null)
+    setTagDraft(EMPTY_TAG_DRAFT)
+    setTagErrors({})
+    tagAttempt.current += 1
     setGps(null)
     setAddress(null)
     setAddressStatus('idle')
@@ -471,6 +606,9 @@ export function FloodReportForm({
   const photoMessage = photoError ?? photoFieldError ?? null
   const locationMessage = gpsError ?? gpsFieldError ?? null
   const selectedAlertLevel = ALERT_LEVELS.find((option) => option.value === alertLevel)
+  const selectedTagLabel = tagTypes.options.find(
+    (option) => option.value === tagDraft.type,
+  )?.label
 
   if (step === 'success' && submitResult !== null) {
     return (
@@ -483,6 +621,12 @@ export function FloodReportForm({
             ? ` Report #${submitResult.reportId} (${selectedAlertLevel?.label ?? alertLevel}) is now with the command center.`
             : ''}
         </Alert>
+
+        {submitResult.tag !== null && (
+          <Alert tone={tagAlertTone(submitResult.tag.status)}>
+            {submitResult.tag.message}
+          </Alert>
+        )}
 
         <div className="report-form-actions">
           <Button variant="secondary" onClick={resetForm}>
@@ -549,6 +693,12 @@ export function FloodReportForm({
             <dt>Notes</dt>
             <dd>{notes.trim() === '' ? 'None' : notes.trim()}</dd>
           </div>
+          {canRecordTag && tagDraft.enabled && (
+            <div>
+              <dt>Access tag</dt>
+              <dd>{selectedTagLabel ?? 'Not chosen'}</dd>
+            </div>
+          )}
         </dl>
 
         {photoPreview !== null && (
@@ -764,6 +914,18 @@ export function FloodReportForm({
           onChange={(event) => setNotes(event.target.value)}
         />
       </Field>
+
+      {canRecordTag && gps !== null && (
+        <AccessTagStep
+          draft={tagDraft}
+          onChange={setTagDraft}
+          options={tagTypes.options}
+          status={tagTypes.status}
+          onReload={tagTypes.reload}
+          errors={tagErrors}
+          location={formatCoordinates(gps)}
+        />
+      )}
 
       <p className="muted">
         Barangay: {user?.barangay?.name ?? 'assigned automatically'} · Reported

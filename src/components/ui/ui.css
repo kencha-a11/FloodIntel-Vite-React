@@ -171,6 +171,41 @@ textarea.ui-input {
   }
 }
 
+.ui-checkbox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+/* The whole row is the target, so the label carries the 44 px minimum. */
+.ui-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.ui-checkbox-input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent);
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.access-tag-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .ui-badge {
   display: inline-flex;
   align-items: center;

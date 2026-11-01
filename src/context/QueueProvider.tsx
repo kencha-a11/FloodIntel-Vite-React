@@ -9,6 +9,7 @@ import type {
   SubmitLevelReportInput,
 } from './QueueContext'
 import type { QueueItem, SubmitReportResult } from '../types/queue'
+import type { AccessTagInput } from '../types/accessTag'
 import {
   clearQueueForUser,
   countPendingItems,
@@ -208,6 +209,31 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     [user, deliverItem],
   )
 
+  const submitTag = useCallback(
+    async (payload: AccessTagInput): Promise<SubmitReportResult> => {
+      if (user === null) {
+        throw new Error('You are not signed in.')
+      }
+
+      // A tag has no photo and no replay: the item carries the payload's own
+      // observation instant, and a duplicate after a lost response is D-126's
+      // accepted risk.
+      return deliverItem({
+        id: newClientId(),
+        userId: user.id,
+        kind: 'tag',
+        payload,
+        status: 'queued',
+        attempts: 0,
+        lastError: null,
+        nextAttemptAt: null,
+        createdAt: Date.now(),
+        observedAt: payload.observed_at,
+      })
+    },
+    [user, deliverItem],
+  )
+
   const retry = useCallback(
     async (id: string) => {
       if (user === null) {
@@ -270,6 +296,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       outcomes: syncState.outcomes,
       submitLevelReport,
       submitImpactReport,
+      submitTag,
       retry,
       retryAll,
       discard,
@@ -285,6 +312,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     storageAvailable,
     submitLevelReport,
     submitImpactReport,
+    submitTag,
     retry,
     retryAll,
     discard,

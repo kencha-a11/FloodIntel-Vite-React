@@ -126,6 +126,13 @@ function queue(overrides: Partial<QueueContextValue> = {}): QueueContextValue {
       reportId: null,
       message: '',
     }),
+    submitTag: async () => ({
+      id: '',
+      queued: false,
+      failed: false,
+      reportId: null,
+      message: '',
+    }),
     retry: async () => {},
     retryAll: async () => {},
     discard: async () => {},

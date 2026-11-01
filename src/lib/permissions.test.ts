@@ -43,13 +43,14 @@ const CAPTAIN: Account = {
   abilities: [
     'submit-impact-report',
     'submit-flood-report',
+    'record-access-tag',
     'view-own-barangay',
   ],
 }
 const TANOD: Account = {
   role: 'barangay_tanod',
   interface: 'field_reporter',
-  abilities: ['submit-flood-report', 'view-own-barangay'],
+  abilities: ['submit-flood-report', 'record-access-tag', 'view-own-barangay'],
 }
 const RESCUE_LEADER: Account = {
   role: 'rescue_leader',
@@ -60,6 +61,7 @@ const RESCUE_LEADER: Account = {
 const COMMAND_CENTER = {
   fileFloodReport: false,
   fileImpactReport: false,
+  recordAccessTag: false,
   viewOwnBarangay: false,
   reviewReports: true,
   viewAllBarangays: true,
@@ -90,6 +92,7 @@ describe('userPermissions', () => {
     expect(userPermissions(CAPTAIN)).toEqual({
       fileFloodReport: true,
       fileImpactReport: true,
+      recordAccessTag: true,
       viewOwnBarangay: true,
       viewAllBarangays: false,
       reviewReports: false,
@@ -112,6 +115,7 @@ describe('userPermissions', () => {
     expect(userPermissions(RESCUE_LEADER)).toEqual({
       fileFloodReport: false,
       fileImpactReport: false,
+      recordAccessTag: false,
       viewOwnBarangay: false,
       viewAllBarangays: false,
       reviewReports: false,
@@ -121,6 +125,18 @@ describe('userPermissions', () => {
       manageTokens: false,
       manageUsers: false,
     })
+  })
+
+  it('keys tag recording on the ability FR-118 grants to the field roles', () => {
+    expect(userPermissions(CAPTAIN).recordAccessTag).toBe(true)
+    expect(userPermissions(TANOD).recordAccessTag).toBe(true)
+    expect(
+      userPermissions({
+        role: 'barangay_tanod',
+        interface: 'field_reporter',
+        abilities: ['submit-flood-report'],
+      }).recordAccessTag,
+    ).toBe(false)
   })
 
   it('ignores abilities the server never granted', () => {
