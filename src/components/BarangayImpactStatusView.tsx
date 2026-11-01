@@ -1,4 +1,5 @@
 import { useAuth } from '../context/useAuth'
+import { relatedReportIdsLabel } from '../lib/relatedReports'
 import { Alert, Badge, EmptyState, Spinner } from './ui'
 import type { FloodImpactReport } from '../types/impact'
 
@@ -73,6 +74,14 @@ export function BarangayImpactStatusView({
                     <p className="report-row-meta">
                       Observed {formatDateTime(report.reported_at)}
                     </p>
+                    {report.related_level_report_ids !== null &&
+                      report.related_level_report_ids !== undefined &&
+                      report.related_level_report_ids.length > 0 && (
+                        <p className="report-row-meta">
+                          Related level reports:{' '}
+                          {relatedReportIdsLabel(report.related_level_report_ids)}
+                        </p>
+                      )}
                     {report.remarks !== null && report.remarks !== '' && (
                       <p className="report-row-notes">{report.remarks}</p>
                     )}

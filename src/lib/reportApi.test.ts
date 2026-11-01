@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { submitImpactReport, submitReport } from './reportApi'
+import { listRecentReports, submitImpactReport, submitReport } from './reportApi'
 import type { ImpactReportInput } from '../types/impact'
 import type { FloodReportInput } from '../types/report'
 
@@ -60,6 +60,25 @@ async function impactBodyOf(report: ImpactReportInput): Promise<unknown> {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('listRecentReports', () => {
+  it('asks for the newest page through the same filter encoding as the list', async () => {
+    let url = ''
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        url = path
+
+        return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      }),
+    )
+
+    await listRecentReports('token')
+
+    expect(url).toContain('/flood-reports?per_page=20&page=1')
+  })
 })
 
 describe('submitReport', () => {

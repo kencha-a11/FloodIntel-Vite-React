@@ -79,6 +79,27 @@ describe('impact reporting screens', () => {
     expect(form).toContain('Report #{corrected.id}')
   })
 
+  it('offers the barangay level reports as a pressed-state picker', () => {
+    const form = read('./FloodImpactReportForm.tsx')
+    const api = read('../lib/reportApi.ts')
+
+    expect(api).toContain('listRecentReports')
+    expect(form).toContain('.listRecentReports(token)')
+    expect(form).toContain('aria-pressed={selected}')
+    expect(form).toContain(
+      'related_level_report_ids: relatedIds.length === 0 ? null : relatedIds',
+    )
+    expect(form).toContain('setRelatedIds([])')
+    expect(form).toContain('Related level reports')
+  })
+
+  it('labels the linked level reports in the barangay status view', () => {
+    const view = read('./BarangayImpactStatusView.tsx')
+
+    expect(view).toContain('relatedReportIdsLabel')
+    expect(view).toContain('Related level reports:')
+  })
+
   it('labels the earlier report once a newer one supersedes it', () => {
     const view = read('./BarangayImpactStatusView.tsx')
 

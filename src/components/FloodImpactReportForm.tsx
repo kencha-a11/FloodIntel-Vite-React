@@ -6,7 +6,15 @@ import { Alert, Button, EmptyState, Field, Select, Spinner, Textarea, TextInput 
 import { getStoredToken } from '../lib/http'
 import * as impactApi from '../lib/impactApi'
 import { deviationWarning } from '../lib/impactDeviation'
+import * as reportApi from '../lib/reportApi'
+import { alertTierShortLabel, floodLevelLabel } from '../lib/vocabulary'
+import {
+  relatedReportCandidates,
+  relatedReportIdsLabel,
+  toggleRelatedReport,
+} from '../lib/relatedReports'
 import type { FloodImpactReport, ImpactEvent } from '../types/impact'
+import type { FloodReport } from '../types/report'
 
 type FormStep = 'form' | 'confirm' | 'success'
 
@@ -22,6 +30,14 @@ function formatDateTime(value: string): string {
 
 function currentTimestamp(): string {
   return new Date().toISOString()
+}
+
+function levelReportLabel(report: FloodReport): string {
+  const tier =
+    report.alert_level === null ? null : alertTierShortLabel(report.alert_level)
+  const subject = tier ?? floodLevelLabel(report.flood_level) ?? 'Report'
+
+  return `#${report.id} · ${subject} · ${formatDateTime(report.reported_at ?? report.created_at)}`
 }
 
 function parseCount(value: string): number | null {
@@ -68,6 +84,8 @@ export function FloodImpactReportForm({
   const [familiesInput, setFamiliesInput] = useState('')
   const [individualsInput, setIndividualsInput] = useState('')
   const [supersedesId, setSupersedesId] = useState<number | null>(null)
+  const [levelReports, setLevelReports] = useState<FloodReport[]>([])
+  const [relatedIds, setRelatedIds] = useState<number[]>([])
   const [remarks, setRemarks] = useState('')
   const [observedAt, setObservedAt] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -108,6 +126,30 @@ export function FloodImpactReportForm({
               : 'You are offline and no event list is saved on this device.',
           )
         }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [initial])
+
+  useEffect(() => {
+    let cancelled = false
+    const token = initial.token
+
+    if (token === null) {
+      return
+    }
+
+    void reportApi
+      .listRecentReports(token)
+      .then((reports) => {
+        if (!cancelled) {
+          setLevelReports(relatedReportCandidates(reports))
+        }
+      })
+      .catch(() => {
+        // The link is optional; an unavailable list only hides the picker.
       })
 
     return () => {
@@ -187,7 +229,7 @@ export function FloodImpactReportForm({
           families,
           individuals,
           breakdown: null,
-          related_level_report_ids: null,
+          related_level_report_ids: relatedIds.length === 0 ? null : relatedIds,
           remarks: remarks.trim() === '' ? null : remarks.trim(),
           reported_at: filedAt,
           supersedes_id: supersedesId,
@@ -224,6 +266,7 @@ export function FloodImpactReportForm({
     setFamiliesInput('')
     setIndividualsInput('')
     setSupersedesId(null)
+    setRelatedIds([])
     setRemarks('')
     setObservedAt(null)
     setErrors({})
@@ -297,6 +340,10 @@ export function FloodImpactReportForm({
               </dd>
             </div>
           )}
+          <div>
+            <dt>Related level reports</dt>
+            <dd>{relatedReportIdsLabel(relatedIds)}</dd>
+          </div>
         </dl>
 
         {warning !== null && <Alert tone="warning">{warning}</Alert>}
@@ -409,6 +456,41 @@ export function FloodImpactReportForm({
             ))}
           </Select>
         </Field>
+      )}
+
+      {levelReports.length > 0 && (
+        <fieldset className="field">
+          <legend className="field-label">Related flood reports (optional)</legend>
+          <small id="impact-related-hint" className="field-hint">
+            Pick the level reports this impact counts. Only reports from your
+            barangay are listed.
+          </small>
+          <div
+            className="related-reports"
+            role="group"
+            aria-describedby="impact-related-hint"
+          >
+            {levelReports.map((report) => {
+              const selected = relatedIds.includes(report.id)
+
+              return (
+                <Button
+                  key={report.id}
+                  variant={selected ? 'primary' : 'secondary'}
+                  size="compact"
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setRelatedIds((current) =>
+                      toggleRelatedReport(current, report.id),
+                    )
+                  }
+                >
+                  {levelReportLabel(report)}
+                </Button>
+              )
+            })}
+          </div>
+        </fieldset>
       )}
 
       {warning !== null && <Alert tone="warning">{warning}</Alert>}

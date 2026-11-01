@@ -22,6 +22,35 @@ export function listReports(
   )
 }
 
+const RECENT_REPORT_FILTERS: ReportFilters = {
+  q: '',
+  flood_level: '',
+  flood_type: '',
+  alert_level: '',
+  status: '',
+  barangay_id: '',
+  from: '',
+  to: '',
+  per_page: 20,
+  page: 1,
+}
+
+/**
+ * The impact form's related-report picker: the newest level reports the
+ * caller may read. The server scopes them to the caller's barangay (D-118).
+ */
+export function listRecentReports(
+  token: string,
+  perPage = 20,
+): Promise<FloodReport[]> {
+  const suffix = buildReportQuery({ ...RECENT_REPORT_FILTERS, per_page: perPage })
+
+  return request<Paginated<FloodReport>>(
+    `${API_BASE_URL}/flood-reports?${suffix}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  ).then((response) => response.data)
+}
+
 export function listValidatedFeed(
   token: string,
   options: { limit?: number } = {},

@@ -557,6 +557,30 @@
   gap: var(--space-2);
 }
 
+/*
+ * FR-11's related-report picker is a row of pressed-state buttons, the same
+ * pattern the map's layer control uses (D-118): one markup pattern for an
+ * on/off choice, and one full-width target per report on the field widths.
+ */
+.related-reports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 767px) {
+  .related-reports {
+    flex-direction: column;
+  }
+
+  .related-reports .ui-button {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
 .gps-readout {
   display: flex;
   flex-direction: column;
