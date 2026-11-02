@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Alert, Button, Field, TextInput } from './ui'
+import { TermsAcceptance } from './TermsAcceptance'
 import { useAuth } from '../context/useAuth'
 import { formatDuration } from '../lib/format'
+import { hasAcceptedTerms } from '../lib/terms'
 import { isBlank } from '../lib/validation'
 
 export function LoginForm({
@@ -16,6 +18,7 @@ export function LoginForm({
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(() => hasAcceptedTerms())
 
   function validate(): boolean {
     const next: Record<string, string> = {}
@@ -36,7 +39,7 @@ export function LoginForm({
     event.preventDefault()
     clearError()
 
-    if (isSubmitting || lockoutSeconds > 0 || !validate()) {
+    if (isSubmitting || lockoutSeconds > 0 || !termsAccepted || !validate()) {
       return
     }
 
@@ -86,7 +89,12 @@ export function LoginForm({
         />
       </Field>
 
-      <Button type="submit" disabled={isSubmitting || lockoutSeconds > 0}>
+      <TermsAcceptance accepted={termsAccepted} onAcceptedChange={setTermsAccepted} />
+
+      <Button
+        type="submit"
+        disabled={isSubmitting || lockoutSeconds > 0 || !termsAccepted}
+      >
         {isSubmitting ? 'Signing in…' : 'Sign in'}
       </Button>
 
