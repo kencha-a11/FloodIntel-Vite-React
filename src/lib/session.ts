@@ -1,5 +1,6 @@
 import type { User } from '../types/auth'
 
+const TOKEN_KEY = 'auth_token'
 const USER_KEY = 'auth_user'
 const AUTH_AT_KEY = 'auth_at'
 
@@ -12,6 +13,28 @@ function storage(): Storage | null {
     return null
   }
 }
+
+// --- token (single source of the bearer) ---
+
+export function getStoredToken(): string | null {
+  return storage()?.getItem(TOKEN_KEY) ?? null
+}
+
+export function storeToken(token: string | null): void {
+  const store = storage()
+
+  if (token === null) {
+    store?.removeItem(TOKEN_KEY)
+  } else {
+    store?.setItem(TOKEN_KEY, token)
+  }
+}
+
+export function clearToken(): void {
+  storeToken(null)
+}
+
+// --- cached user ---
 
 export function cacheUser(user: User): void {
   storage()?.setItem(USER_KEY, JSON.stringify(user))
@@ -46,6 +69,8 @@ export function clearCachedUser(): void {
   storage()?.removeItem(USER_KEY)
 }
 
+// --- auth instant ---
+
 export function markAuthenticated(at: number = Date.now()): void {
   storage()?.setItem(AUTH_AT_KEY, String(at))
 }
@@ -69,6 +94,8 @@ export function clearSessionCache(): void {
   store?.removeItem(AUTH_AT_KEY)
 }
 
+// --- expiry (advisory sync window) ---
+
 export function isSyncWindowExpired(
   now: number = Date.now(),
   lastAuthenticatedAt: number | null = readLastAuthenticatedAt(),
@@ -78,4 +105,11 @@ export function isSyncWindowExpired(
   }
 
   return now - lastAuthenticatedAt > AUTH_WINDOW_MS
+}
+
+// --- auth-store cleanup: 401 is the expiry authority ---
+
+export function clearAuth(): void {
+  storeToken(null)
+  clearSessionCache()
 }

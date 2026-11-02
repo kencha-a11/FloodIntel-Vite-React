@@ -5,7 +5,7 @@ import type {
   Session,
   User,
 } from '../types/auth'
-import { API_BASE_URL, request } from './http'
+import { API_BASE_URL, authedRequest, request } from './http'
 
 export { AuthApiError, getStoredToken, storeToken } from './http'
 
@@ -20,27 +20,21 @@ export function login(
   })
 }
 
-export function fetchUser(token: string): Promise<User> {
-  return request<User>(`${API_BASE_URL}/user`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+export function fetchUser(_token: string): Promise<User> {
+  return authedRequest<User>(`${API_BASE_URL}/user`)
 }
 
-export function logout(token: string): Promise<void> {
-  return request<void>(`${API_BASE_URL}/logout`, {
+export function logout(_token: string): Promise<void> {
+  return authedRequest<void>(`${API_BASE_URL}/logout`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
   })
 }
 
-export function resendVerification(
-  token: string,
-): Promise<{ message: string }> {
-  return request<{ message: string }>(
+export function resendVerification(_token: string): Promise<{ message: string }> {
+  return authedRequest<{ message: string }>(
     `${API_BASE_URL}/email/verification-notification`,
     {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
     },
   )
 }
@@ -73,46 +67,43 @@ export function resetPassword(
   })
 }
 
-export function listTokens(token: string): Promise<ApiToken[]> {
-  return request<{ data: ApiToken[] }>(`${API_BASE_URL}/tokens`, {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then((response) => response.data)
+export function listTokens(_token: string): Promise<ApiToken[]> {
+  return authedRequest<{ data: ApiToken[] }>(`${API_BASE_URL}/tokens`).then(
+    (response) => response.data,
+  )
 }
 
-export function fetchSessions(token: string): Promise<Session[]> {
-  return request<{ data: Session[] }>(`${API_BASE_URL}/sessions`, {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then((response) => response.data)
+export function fetchSessions(_token: string): Promise<Session[]> {
+  return authedRequest<{ data: Session[] }>(`${API_BASE_URL}/sessions`).then(
+    (response) => response.data,
+  )
 }
 
 export function createToken(
-  token: string,
+  _token: string,
   name: string,
   abilities: string[] = [],
 ): Promise<CreateTokenResponse> {
   const payload =
     abilities.length > 0 ? { name, abilities } : { name }
 
-  return request<CreateTokenResponse>(`${API_BASE_URL}/tokens`, {
+  return authedRequest<CreateTokenResponse>(`${API_BASE_URL}/tokens`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
   })
 }
 
-export function deleteToken(token: string, id: number): Promise<void> {
-  return request<void>(`${API_BASE_URL}/tokens/${id}`, {
+export function deleteToken(_token: string, id: number): Promise<void> {
+  return authedRequest<void>(`${API_BASE_URL}/tokens/${id}`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
   })
 }
 
-export function deleteAllTokens(token: string): Promise<void> {
-  return request<void>(`${API_BASE_URL}/tokens`, {
+export function deleteAllTokens(_token: string): Promise<void> {
+  return authedRequest<void>(`${API_BASE_URL}/tokens`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
   })
 }

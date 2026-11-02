@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthApiError, getStoredToken, request } from './http'
+import { AuthApiError, authedRequest, getStoredToken, request } from './http'
 
 const stored = new Map<string, string>()
 
@@ -74,5 +74,30 @@ describe('request', () => {
     )
 
     expect((absent as AuthApiError).serverDate).toBeNull()
+  })
+})
+
+describe('authedRequest', () => {
+  it('attaches the bearer token from the stored token', async () => {
+    localStorage.setItem('auth_token', 'secret-token')
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await authedRequest('/api/user')
+
+    expect(fetchMock).toHaveBeenCalled()
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const headers = new Headers(init.headers)
+    expect(headers.get('Authorization')).toBe('Bearer secret-token')
+  })
+
+  it('preserves a 401 as an AuthApiError', async () => {
+    localStorage.setItem('auth_token', 'secret-token')
+    respondOnce(401)
+
+    const error = await authedRequest('/api/user').catch((err: unknown) => err)
+
+    expect(error).toBeInstanceOf(AuthApiError)
+    expect((error as AuthApiError).status).toBe(401)
   })
 })
