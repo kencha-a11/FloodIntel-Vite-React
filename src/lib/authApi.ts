@@ -2,6 +2,7 @@ import type {
   ApiToken,
   AuthResponse,
   CreateTokenResponse,
+  Session,
   User,
 } from '../types/auth'
 import { API_BASE_URL, request } from './http'
@@ -74,6 +75,12 @@ export function resetPassword(
 
 export function listTokens(token: string): Promise<ApiToken[]> {
   return request<{ data: ApiToken[] }>(`${API_BASE_URL}/tokens`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((response) => response.data)
+}
+
+export function fetchSessions(token: string): Promise<Session[]> {
+  return request<{ data: Session[] }>(`${API_BASE_URL}/sessions`, {
     headers: { Authorization: `Bearer ${token}` },
   }).then((response) => response.data)
 }
