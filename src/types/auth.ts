@@ -43,6 +43,20 @@ export interface ApiToken {
   last_used_at: string | null
 }
 
+export interface Session {
+  id: number
+  name: string
+  ip_address: string | null
+  user_agent: string | null
+  logged_in_at: string
+  last_used_at: string | null
+  is_current: boolean
+}
+
+export type AuthSession = Session
+export type LoginSession = Session
+export type ActiveSession = Session
+
 export interface CreateTokenResponse {
   data: ApiToken
   token: string

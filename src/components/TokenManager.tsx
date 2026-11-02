@@ -13,7 +13,7 @@ import {
 import { useAuth } from '../context/useAuth'
 import * as authApi from '../lib/authApi'
 import { isBlank } from '../lib/validation'
-import type { ApiToken, FieldErrors } from '../types/auth'
+import type { ApiToken, FieldErrors, Session } from '../types/auth'
 
 const SESSION_TOKEN_NAME = 'auth_token'
 const MAX_ABILITIES = 20
@@ -37,6 +37,7 @@ function formatDate(value: string | null): string {
 export function TokenManager({ onBack }: { onBack: () => void }) {
   const { logout } = useAuth()
   const [tokens, setTokens] = useState<ApiToken[]>([])
+  const [sessions, setSessions] = useState<Session[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -52,7 +53,7 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
   const [isConfirmingRevokeAll, setIsConfirmingRevokeAll] = useState(false)
 
   useEffect(() => {
-    async function loadTokens() {
+    async function loadAll() {
       const token = authApi.getStoredToken()
 
       if (token === null) {
@@ -61,8 +62,12 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
       }
 
       try {
-        const response = await authApi.listTokens(token)
-        setTokens(response)
+        const [tokenList, sessionList] = await Promise.all([
+          authApi.listTokens(token),
+          authApi.fetchSessions(token),
+        ])
+        setTokens(tokenList)
+        setSessions(sessionList)
       } catch (err) {
         if (err instanceof authApi.AuthApiError && err.status === 401) {
           await logout()
@@ -79,7 +84,7 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
       }
     }
 
-    void loadTokens()
+    void loadAll()
   }, [logout])
 
   async function reloadTokens(): Promise<void> {
@@ -91,6 +96,17 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
 
     const response = await authApi.listTokens(token)
     setTokens(response)
+  }
+
+  async function reloadSessions(): Promise<void> {
+    const token = authApi.getStoredToken()
+
+    if (token === null) {
+      return
+    }
+
+    const response = await authApi.fetchSessions(token)
+    setSessions(response)
   }
 
   function validate(): boolean {
@@ -190,6 +206,45 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
     }
   }
 
+  async function handleRevokeSession(session: Session) {
+    const token = authApi.getStoredToken()
+
+    if (token === null || deletingId !== null) {
+      return
+    }
+
+    setDeletingId(session.id)
+    setError(null)
+
+    try {
+      await authApi.deleteToken(token, session.id)
+
+      if (session.is_current) {
+        await logout()
+        return
+      }
+
+      await reloadSessions()
+    } catch (err) {
+      if (err instanceof authApi.AuthApiError) {
+        if (err.status === 401) {
+          await logout()
+          return
+        }
+
+        setError(
+          err.status === 404
+            ? 'Session not found or already revoked.'
+            : err.message,
+        )
+      } else {
+        setError('Unable to connect to the server.')
+      }
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   async function handleRevokeAll() {
     const token = authApi.getStoredToken()
 
@@ -240,7 +295,7 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="token-manager">
-      <h2>API tokens</h2>
+      <h2>Active sessions</h2>
 
       {error && <Alert tone="danger">{error}</Alert>}
 
@@ -258,39 +313,100 @@ export function TokenManager({ onBack }: { onBack: () => void }) {
 
       {isLoading ? (
         <Spinner label="Loading tokens…" />
-      ) : tokens.length === 0 ? (
-        <EmptyState
-          title="No API tokens yet."
-          description="Create a token below to allow a device or script to call the API."
-        />
       ) : (
-        <ul className="token-list">
-          {tokens.map((token) => (
-            <li key={token.id}>
-              <Card className="token-item">
-                <div className="token-header">
-                  <p className="token-name">{token.name}</p>
-                  <Button
-                    variant="danger"
-                    disabled={deletingId !== null}
-                    onClick={() => void handleDelete(token.id, token.name)}
+        <>
+          {sessions.length === 0 ? (
+            <EmptyState
+              title="No active sessions."
+              description="No sessions to show."
+            />
+          ) : (
+            <ul className="session-list">
+              {sessions.map((session) => (
+                <li
+                  key={session.id}
+                  aria-current={session.is_current ? 'true' : undefined}
+                >
+                  <Card
+                    className={
+                      session.is_current
+                        ? 'session-item session-current'
+                        : 'session-item'
+                    }
                   >
-                    {deletingId === token.id ? 'Revoking…' : 'Revoke'}
-                  </Button>
-                </div>
-                <p className="token-meta">
-                  {token.abilities.length > 0
-                    ? token.abilities.join(', ')
-                    : 'All abilities'}
-                </p>
-                <p className="token-meta">
-                  Created {formatDate(token.created_at)} · Last used{' '}
-                  {formatDate(token.last_used_at)}
-                </p>
-              </Card>
-            </li>
-          ))}
-        </ul>
+                    <div className="session-header">
+                      <p className="session-name">
+                        {session.name}
+                        {session.is_current && (
+                          <span className="session-current">Current session</span>
+                        )}
+                      </p>
+                      <Button
+                        variant="danger"
+                        disabled={deletingId !== null}
+                        onClick={() => void handleRevokeSession(session)}
+                      >
+                        {deletingId === session.id ? 'Revoking…' : 'Revoke'}
+                      </Button>
+                    </div>
+                    <p className="session-meta">
+                      ID: {session.id} · IP: {session.ip_address ?? 'Unknown'}
+                    </p>
+                    <p className="session-meta">
+                      User agent: {session.user_agent ?? 'Unknown'}
+                    </p>
+                    <p className="session-meta">
+                      Logged in {formatDate(session.logged_in_at)} · Last used{' '}
+                      {formatDate(session.last_used_at)}
+                    </p>
+                    <p className="session-meta">
+                      Current: {String(session.is_current)}
+                    </p>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <hr className="token-divider" />
+
+          <h2>API tokens</h2>
+
+          {tokens.length === 0 ? (
+            <EmptyState
+              title="No API tokens yet."
+              description="Create a token below to allow a device or script to call the API."
+            />
+          ) : (
+            <ul className="token-list">
+              {tokens.map((token) => (
+                <li key={token.id}>
+                  <Card className="token-item">
+                    <div className="token-header">
+                      <p className="token-name">{token.name}</p>
+                      <Button
+                        variant="danger"
+                        disabled={deletingId !== null}
+                        onClick={() => void handleDelete(token.id, token.name)}
+                      >
+                        {deletingId === token.id ? 'Revoking…' : 'Revoke'}
+                      </Button>
+                    </div>
+                    <p className="token-meta">
+                      {token.abilities.length > 0
+                        ? token.abilities.join(', ')
+                        : 'All abilities'}
+                    </p>
+                    <p className="token-meta">
+                      Created {formatDate(token.created_at)} · Last used{' '}
+                      {formatDate(token.last_used_at)}
+                    </p>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       <hr className="token-divider" />
