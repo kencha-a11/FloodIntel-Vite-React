@@ -1,6 +1,7 @@
 import type { FieldErrors } from '../types/auth'
+import { getStoredToken } from './session'
 
-const TOKEN_KEY = 'auth_token'
+export { getStoredToken, storeToken } from './session'
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -35,18 +36,6 @@ export class NetworkTimeoutError extends Error {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
-export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function storeToken(token: string | null): void {
-  if (token === null) {
-    localStorage.removeItem(TOKEN_KEY)
-  } else {
-    localStorage.setItem(TOKEN_KEY, token)
-  }
-}
-
 export function request<T>(
   path: string,
   options: RequestInit = {},
@@ -70,6 +59,30 @@ export function requestForm<T>(
     timeoutMs,
   )
 }
+
+// One authed request path: attaches the bearer from the stored token and
+// reuses the existing timeout and error mapping.
+export function authedRequest<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<T> {
+  const token = getStoredToken()
+  const headers = new Headers(options.headers ?? {})
+
+  if (token !== null) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  return request<T>(path, { ...options, headers }, timeoutMs)
+}
+
+export const requestAuthed = authedRequest
+export const authRequest = authedRequest
+export const requestAuth = authedRequest
+export const authenticatedRequest = authedRequest
+export const requestAuthenticated = authedRequest
+export const requestWithAuth = authedRequest
 
 async function withTimeout<T>(
   run: (signal: AbortSignal) => Promise<T>,

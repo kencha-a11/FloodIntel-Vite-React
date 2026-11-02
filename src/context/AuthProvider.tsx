@@ -13,7 +13,7 @@ import type { ResendVerificationResult } from './AuthContext'
 import * as authApi from '../lib/authApi'
 import {
   cacheUser,
-  clearSessionCache,
+  clearAuth,
   markAuthenticated,
   readCachedUser,
 } from '../lib/session'
@@ -73,8 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           err instanceof authApi.AuthApiError &&
           (err.status === 401 || err.status === 403)
         ) {
-          authApi.storeToken(null)
-          clearSessionCache()
+          clearAuth()
           setUser(null)
 
           return
@@ -126,10 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (token !== null) {
       await authApi.logout(token).catch(() => {})
-      authApi.storeToken(null)
     }
 
-    clearSessionCache()
+    clearAuth()
     setUser(null)
   }, [])
 
@@ -150,8 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         err instanceof authApi.AuthApiError &&
         (err.status === 401 || err.status === 403)
       ) {
-        authApi.storeToken(null)
-        clearSessionCache()
+        clearAuth()
         setUser(null)
       }
     }
