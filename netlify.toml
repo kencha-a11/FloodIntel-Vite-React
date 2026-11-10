@@ -4,6 +4,7 @@
 
 [environment]
   VITE_API_URL = "https://floodintel-laravel.onrender.com/api"
+  NODE_VERSION = "22"
 
 [[redirects]]
   from = "/*"
@@ -16,3 +17,24 @@
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
+    # DP-07 edge hardening. The CSP allows inline *styles* (style-src) because
+    # React inline style attributes and element.style.setProperty cannot be
+    # hashed; inline *scripts* are not allowed because script-src is 'self' only.
+    # img-src carries the API origin because a report photo is served from
+    # {APP_URL}/storage today (server/config/filesystems.php), and
+    # res.cloudinary.com for the signed delivery D-138 moves photos to.
+    # img-src also carries data: because MapLibre draws its zoom and attribution
+    # control icons from data:image/svg+xml URIs in maplibre-gl.css; without it
+    # the controls load without their glyphs (DP-07 verification, 2026-11-10).
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://floodintel-laravel.onrender.com https://res.cloudinary.com; connect-src 'self' https://floodintel-laravel.onrender.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(self), camera=(self), microphone=(), payment=(), interest-cohort=()"
+
+# MapLibre's worker is emitted as an .mjs module script, and a browser refuses
+# a module script whose content type is not JavaScript ("Worker failed to
+# load"). The type is pinned here rather than assumed from the host's defaults.
+[[headers]]
+  for = "/assets/*.mjs"
+  [headers.values]
+    Content-Type = "text/javascript"
