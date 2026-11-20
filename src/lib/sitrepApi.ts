@@ -16,6 +16,12 @@ import { API_BASE_URL, AuthApiError, NetworkTimeoutError, request } from './http
 
 const RENDER_TIMEOUT_MS = 120_000
 
+// The server stamps the frozen document with this meta marker; its absence
+// means the 200 body is not the document (error page / SPA shell).
+const DOCUMENT_MARKER = 'name="sitrep-document"'
+const DOCX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` }
 }
@@ -120,16 +126,40 @@ export function deleteSitrepSupplement(token: string, id: number): Promise<void>
 /**
  * The frozen document as printable HTML. Fetched with the bearer token and
  * handed to a sandboxed frame as srcDoc; the HTML is never a navigable URL.
+ * A broken or out-of-date API can answer 200 with an error page or the SPA
+ * shell instead of the document; framing that would run its inline scripts
+ * against the preview CSP (about:srcdoc). Only the genuine document, marked
+ * by the server, is allowed through.
  */
 export function fetchSitrepDocumentHtml(token: string, id: number): Promise<string> {
   return rawAuthed(token, `${API_BASE_URL}/situational-reports/${id}/document`).then(
-    (response) => response.text(),
+    async (response) => {
+      const html = await response.text()
+
+      if (!html.includes(DOCUMENT_MARKER)) {
+        throw new Error(
+          'The server returned an unexpected page instead of the report document. The API may be unavailable or out of date.',
+        )
+      }
+
+      return html
+    },
   )
 }
 
 export function fetchSitrepDocx(token: string, id: number): Promise<Blob> {
   return rawAuthed(token, `${API_BASE_URL}/situational-reports/${id}/docx`).then(
-    (response) => response.blob(),
+    async (response) => {
+      const type = response.headers.get('Content-Type') ?? ''
+
+      if (!type.includes(DOCX_CONTENT_TYPE)) {
+        throw new Error(
+          'The server returned an unexpected response instead of the DOCX export. The API may be unavailable or out of date.',
+        )
+      }
+
+      return response.blob()
+    },
   )
 }
 
