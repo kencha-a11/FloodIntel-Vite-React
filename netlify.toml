@@ -26,7 +26,13 @@
     # img-src also carries data: because MapLibre draws its zoom and attribution
     # control icons from data:image/svg+xml URIs in maplibre-gl.css; without it
     # the controls load without their glyphs (DP-07 verification, 2026-11-10).
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://floodintel-laravel.onrender.com https://res.cloudinary.com; connect-src 'self' https://floodintel-laravel.onrender.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    # connect-src carries the Supabase project origin (https + wss) because the
+    # realtime feed opens a websocket to {SUPABASE_URL}/realtime/v1/websocket
+    # (DB-06, D-63). The origin is the concrete project ref, not a wildcard; the
+    # server only hands the client a URL after validating it is a bare project
+    # origin, and a misconfigured deployment reports realtime disabled so the
+    # client keeps polling instead of opening a blocked socket.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://floodintel-laravel.onrender.com https://res.cloudinary.com; connect-src 'self' https://floodintel-laravel.onrender.com https://geqlrrvldimrezifjwxc.supabase.co wss://geqlrrvldimrezifjwxc.supabase.co; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(self), camera=(self), microphone=(), payment=(), interest-cohort=()"
