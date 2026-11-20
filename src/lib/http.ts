@@ -42,7 +42,8 @@ export function request<T>(
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<T> {
   return withTimeout(
-    (signal) => sendRequest<T>(fetch(path, { ...options, signal })),
+    (signal) =>
+      sendRequest<T>(fetch(path, { ...options, credentials: 'include', signal })),
     timeoutMs,
   )
 }
@@ -55,7 +56,9 @@ export function requestForm<T>(
 ): Promise<T> {
   return withTimeout(
     (signal) =>
-      sendRequest<T>(fetch(path, { ...options, body: form, signal })),
+      sendRequest<T>(
+        fetch(path, { ...options, body: form, credentials: 'include', signal }),
+      ),
     timeoutMs,
   )
 }
