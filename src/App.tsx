@@ -11,6 +11,7 @@ import { ForgotPasswordForm } from './components/ForgotPasswordForm'
 import { ResetPasswordForm } from './components/ResetPasswordForm'
 import { ReviewWorkspace } from './components/ReviewWorkspace'
 import { RoleMatrixView } from './components/RoleMatrixView'
+import { SitrepWorkspace } from './components/SitrepWorkspace'
 import { TokenManager } from './components/TokenManager'
 import { UsersView } from './components/UsersView'
 import { LoginForm } from './components/LoginForm'
@@ -169,6 +170,10 @@ function App() {
       {activeView === 'roles' && <RoleMatrixView />}
 
       {activeView === 'users' && <UsersView />}
+
+      {activeView === 'sitrep' && (
+        <SitrepWorkspace canIssue={access.permissions.issueSitrep} />
+      )}
     </AppShell>
   )
 }

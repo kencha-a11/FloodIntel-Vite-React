@@ -19,6 +19,8 @@ export interface Permissions {
   rejectReports: boolean
   manageTokens: boolean
   manageUsers: boolean
+  prepareSitrep: boolean
+  issueSitrep: boolean
 }
 
 const SUBMIT_FLOOD_REPORT = 'submit-flood-report'
@@ -30,6 +32,8 @@ const VALIDATE_REPORT = 'validate-report'
 const OVERRIDE_VALIDATION = 'override-validation'
 const VIEW_VALIDATED_REPORTS = 'view-validated-reports'
 const MANAGE_USERS = 'manage-users'
+const CONSOLIDATE_REPORTS = 'consolidate-reports'
+const GENERATE_PROVINCIAL_REPORT = 'generate-provincial-report'
 
 export function userPermissions(
   user: Pick<User, 'interface' | 'abilities' | 'role'>,
@@ -56,5 +60,12 @@ export function userPermissions(
     // FR-103 names ManageUsers as the authority for role management, and the
     // matrix endpoint is gated on the same ability (D-114).
     manageUsers: abilities.includes(MANAGE_USERS),
+    // Preparation accepts either consolidation ability (D-147); the server
+    // re-checks it in the aggregator. Issuance is the provincial-report
+    // ability alone, which only the officer holds.
+    prepareSitrep:
+      abilities.includes(CONSOLIDATE_REPORTS) ||
+      abilities.includes(GENERATE_PROVINCIAL_REPORT),
+    issueSitrep: abilities.includes(GENERATE_PROVINCIAL_REPORT),
   }
 }

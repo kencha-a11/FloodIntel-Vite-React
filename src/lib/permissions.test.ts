@@ -68,6 +68,8 @@ const COMMAND_CENTER = {
   viewValidatedFeed: true,
   rejectReports: false,
   manageTokens: true,
+  prepareSitrep: false,
+  issueSitrep: false,
 }
 
 describe('userPermissions', () => {
@@ -77,6 +79,8 @@ describe('userPermissions', () => {
       overrideValidation: true,
       rejectReports: true,
       manageUsers: true,
+      prepareSitrep: true,
+      issueSitrep: true,
     })
   })
 
@@ -85,6 +89,8 @@ describe('userPermissions', () => {
       ...COMMAND_CENTER,
       overrideValidation: false,
       manageUsers: false,
+      prepareSitrep: true,
+      issueSitrep: false,
     })
   })
 
@@ -101,6 +107,8 @@ describe('userPermissions', () => {
       rejectReports: false,
       manageTokens: false,
       manageUsers: false,
+      prepareSitrep: false,
+      issueSitrep: false,
     })
   })
 
@@ -124,6 +132,8 @@ describe('userPermissions', () => {
       rejectReports: false,
       manageTokens: false,
       manageUsers: false,
+      prepareSitrep: false,
+      issueSitrep: false,
     })
   })
 

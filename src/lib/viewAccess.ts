@@ -17,6 +17,7 @@ export type AppView =
   | 'tokens'
   | 'roles'
   | 'users'
+  | 'sitrep'
 
 export interface ViewSection {
   view: AppView
@@ -44,6 +45,10 @@ const COMMAND_ORDER: readonly AppView[] = [
   'tokens',
   'capture',
   'impact',
+  // SITREP preparation is command-center chrome (D-42, D-147): it is absent
+  // from FIELD_ORDER, so a field account cannot reach it even if it held the
+  // consolidation ability.
+  'sitrep',
   // The matrix is command-center chrome, so it is absent from FIELD_ORDER:
   // the field interface cannot reach it even if an account held manage-users.
   'roles',
@@ -69,6 +74,8 @@ function sectionLabel(view: AppView, canReview: boolean): string {
       return 'Roles & permissions'
     case 'users':
       return 'Users'
+    case 'sitrep':
+      return 'SITREP'
   }
 }
 
@@ -109,6 +116,12 @@ export function viewAccess(
     reachable.add('roles')
     // /api/users is officer-only and behind the same ability (AUTHZ-11).
     reachable.add('users')
+  }
+
+  // The SITREP workspace answers the consolidation ability (D-42, D-147);
+  // the server re-checks it on every prepare, issue, and supplement request.
+  if (permissions.prepareSitrep) {
+    reachable.add('sitrep')
   }
 
   const order =

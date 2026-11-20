@@ -57,24 +57,30 @@ describe('viewAccess', () => {
       'map',
       'tags',
       'tokens',
+      'sitrep',
       'roles',
       'users',
     ])
     expect(access.sections[0].label).toBe('Review queue')
     expect(access.sections[2].label).toBe('Access tags')
-    expect(access.sections[4].label).toBe('Roles & permissions')
-    expect(access.sections[5].label).toBe('Users')
+    expect(access.sections[4].label).toBe('SITREP')
+    expect(access.sections[5].label).toBe('Roles & permissions')
+    expect(access.sections[6].label).toBe('Users')
     expect(access.permissions.reviewReports).toBe(true)
     expect(access.permissions.fileImpactReport).toBe(false)
+    expect(access.permissions.prepareSitrep).toBe(true)
+    expect(access.permissions.issueSitrep).toBe(true)
   })
 
   it('gives the staff account the same sections, without the matrix, and no filing', () => {
     const access = viewAccess(account('command_center', STAFF, 'mdrrmo_staff'))
 
-    expect(views(access)).toEqual(['reports', 'map', 'tags', 'tokens'])
+    expect(views(access)).toEqual(['reports', 'map', 'tags', 'tokens', 'sitrep'])
     expect(access.permissions.fileImpactReport).toBe(false)
     expect(access.permissions.reviewReports).toBe(true)
     expect(access.permissions.manageUsers).toBe(false)
+    expect(access.permissions.prepareSitrep).toBe(true)
+    expect(access.permissions.issueSitrep).toBe(false)
   })
 
   it('lands a captain on capture and keeps the barangay views', () => {
@@ -159,6 +165,26 @@ describe('viewAccess', () => {
 
     expect(views(access)).toEqual(['reports'])
     expect(access.defaultView).toBe('reports')
+  })
+
+  it('offers the SITREP workspace only in the command center, even with the ability', () => {
+    const officer = viewAccess(account('command_center', OFFICER, 'mdrrmo_officer'))
+    const captain = viewAccess(
+      account('field_reporter', [...CAPTAIN, 'consolidate-reports'], 'barangay_captain'),
+    )
+
+    expect(isViewReachable(officer, 'sitrep')).toBe(true)
+    expect(captain.permissions.prepareSitrep).toBe(true)
+    expect(isViewReachable(captain, 'sitrep')).toBe(false)
+  })
+
+  it('withholds the SITREP workspace from a command account that cannot prepare', () => {
+    const access = viewAccess(
+      account('command_center', ['view-all-barangays', 'view-validated-reports'], 'mdrrmo_staff'),
+    )
+
+    expect(access.permissions.prepareSitrep).toBe(false)
+    expect(isViewReachable(access, 'sitrep')).toBe(false)
   })
 
   it('ignores abilities the server never granted', () => {
